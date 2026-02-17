@@ -7,16 +7,7 @@
 ### 1. 依存関係のインストール
 
 ```bash
-cd frontend
-npm install
-```
-
-または
-
-```bash
-pnpm install
-# または
-yarn install
+cd frontend && npm install
 ```
 
 ### 2. 開発サーバーの起動
