@@ -1,0 +1,17 @@
+.env
+.env.*
+.git
+.gitignore
+.idea
+.claude
+__pycache__
+*.pyc
+*.pyo
+tests/
+node_modules/
+frontend/node_modules/
+app/static/dist/
+logs/
+*.log
+.coverage
+htmlcov/
