@@ -5,6 +5,7 @@ logs/
 .serena/
 
 .env
+.pem
 .coverage
 *.spec
 *.iml
