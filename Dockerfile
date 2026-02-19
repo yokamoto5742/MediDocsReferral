@@ -8,10 +8,11 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends nodejs && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
-COPY frontend/package.json frontend/
-RUN cd frontend && npm install
+COPY frontend/package.json frontend/package-lock.json frontend/
+RUN cd frontend && npm ci
 
 COPY frontend/ frontend/
+COPY app/templates/ app/templates/
 RUN cd frontend && npm run build
 
 FROM python:3.12-slim
