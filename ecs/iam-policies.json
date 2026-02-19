@@ -1,6 +1,6 @@
 {
   "medidocsTaskRole": {
-    "説明": "ECSタスクロール - BedrockのInvoke権限のみ付与",
+    "説昁E: "ECSタスクロール - BedrockのInvoke権限�Eみ付丁E,
     "AssumeRolePolicyDocument": {
       "Version": "2012-10-17",
       "Statement": [
@@ -28,7 +28,7 @@
     }
   },
   "ecsTaskExecutionRole": {
-    "説明": "ECSタスク実行ロール - ECRプル、Secrets Manager読取、CloudWatch Logs書き込み",
+    "説昁E: "ECSタスク実行ロール - ECRプル、Secrets Manager読取、CloudWatch Logs書き込み",
     "AssumeRolePolicyDocument": {
       "Version": "2012-10-17",
       "Statement": [
@@ -52,7 +52,7 @@
           "Action": [
             "secretsmanager:GetSecretValue"
           ],
-          "Resource": "arn:aws:secretsmanager:ap-northeast-1:{ACCOUNT_ID}:secret:medidocs/*"
+          "Resource": "arn:aws:secretsmanager:ap-northeast-1:149050210156:secret:medidocs/*"
         }
       ]
     }
