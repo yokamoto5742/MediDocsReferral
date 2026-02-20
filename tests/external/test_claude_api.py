@@ -1,6 +1,5 @@
 """ClaudeAPIClient のテスト"""
 
-import os
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -11,20 +10,24 @@ from app.external.claude_api import ClaudeAPIClient
 from app.utils.exceptions import APIError
 
 
+def create_mock_settings(**kwargs):
+    """テスト用の設定モックを作成"""
+    mock = MagicMock()
+    mock.aws_access_key_id = kwargs.get("aws_access_key_id", "test_access_key")
+    mock.aws_secret_access_key = kwargs.get("aws_secret_access_key", "test_secret_key")
+    mock.aws_region = kwargs.get("aws_region", "ap-northeast-1")
+    mock.anthropic_model = kwargs.get("anthropic_model", "claude-3-5-sonnet-20241022")
+    return mock
+
+
 class TestClaudeAPIClientInitialization:
     """ClaudeAPIClient 初期化のテスト"""
 
-    @patch.dict(
-        os.environ,
-        {
-            "AWS_ACCESS_KEY_ID": "test_access_key",
-            "AWS_SECRET_ACCESS_KEY": "test_secret_key",
-            "AWS_REGION": "ap-northeast-1",
-            "ANTHROPIC_MODEL": "claude-3-5-sonnet-20241022",
-        },
-    )
-    def test_init_with_environment_variables(self):
-        """初期化 - 環境変数から設定取得"""
+    @patch("app.external.claude_api.get_settings")
+    def test_init_with_environment_variables(self, mock_get_settings):
+        """初期化 - 設定から値を取得"""
+        mock_get_settings.return_value = create_mock_settings()
+
         client = ClaudeAPIClient()
 
         assert client.aws_access_key_id == "test_access_key"
@@ -34,9 +37,16 @@ class TestClaudeAPIClientInitialization:
         assert client.default_model == "claude-3-5-sonnet-20241022"
         assert client.client is None
 
-    @patch.dict(os.environ, {}, clear=True)
-    def test_init_without_environment_variables(self):
-        """初期化 - 環境変数なし"""
+    @patch("app.external.claude_api.get_settings")
+    def test_init_without_settings(self, mock_get_settings):
+        """初期化 - 設定値なし"""
+        mock_get_settings.return_value = create_mock_settings(
+            aws_access_key_id=None,
+            aws_secret_access_key=None,
+            aws_region=None,
+            anthropic_model=None,
+        )
+
         client = ClaudeAPIClient()
 
         assert client.aws_access_key_id is None
@@ -49,17 +59,14 @@ class TestClaudeAPIClientInitialize:
     """ClaudeAPIClient initialize メソッドのテスト"""
 
     @patch("app.external.claude_api.AnthropicBedrock")
-    @patch.dict(
-        os.environ,
-        {
-            "AWS_ACCESS_KEY_ID": "test_key_id",
-            "AWS_SECRET_ACCESS_KEY": "test_secret",
-            "AWS_REGION": "us-east-1",
-            "ANTHROPIC_MODEL": "claude-3-5-sonnet-20241022",
-        },
-    )
-    def test_initialize_success(self, mock_anthropic_bedrock):
+    @patch("app.external.claude_api.get_settings")
+    def test_initialize_success(self, mock_get_settings, mock_anthropic_bedrock):
         """initialize - 正常系"""
+        mock_get_settings.return_value = create_mock_settings(
+            aws_access_key_id="test_key_id",
+            aws_secret_access_key="test_secret",
+            aws_region="us-east-1",
+        )
         mock_client = MagicMock()
         mock_anthropic_bedrock.return_value = mock_client
 
@@ -69,60 +76,19 @@ class TestClaudeAPIClientInitialize:
         assert result is True
         assert client.client is mock_client
 
-        # AnthropicBedrock が正しい引数で呼ばれたことを確認
         mock_anthropic_bedrock.assert_called_once_with(
             aws_access_key="test_key_id",
             aws_secret_key="test_secret",
             aws_region="us-east-1",
         )
 
-    @patch.dict(
-        os.environ,
-        {
-            "AWS_SECRET_ACCESS_KEY": "test_secret",
-            "AWS_REGION": "us-east-1",
-            "ANTHROPIC_MODEL": "claude-3-5-sonnet-20241022",
-        },
-        clear=True,
-    )
-    def test_initialize_missing_access_key_id(self):
-        """initialize - AWS_ACCESS_KEY_ID 未設定"""
-        client = ClaudeAPIClient()
-
-        with pytest.raises(APIError) as exc_info:
-            client.initialize()
-
-        assert "AWS認証情報が設定されていません" in str(exc_info.value)
-
-    @patch.dict(
-        os.environ,
-        {
-            "AWS_ACCESS_KEY_ID": "test_key",
-            "AWS_REGION": "us-east-1",
-            "ANTHROPIC_MODEL": "claude-3-5-sonnet-20241022",
-        },
-        clear=True,
-    )
-    def test_initialize_missing_secret_access_key(self):
-        """initialize - AWS_SECRET_ACCESS_KEY 未設定"""
-        client = ClaudeAPIClient()
-
-        with pytest.raises(APIError) as exc_info:
-            client.initialize()
-
-        assert "AWS認証情報が設定されていません" in str(exc_info.value)
-
-    @patch.dict(
-        os.environ,
-        {
-            "AWS_ACCESS_KEY_ID": "test_key",
-            "AWS_SECRET_ACCESS_KEY": "test_secret",
-            "ANTHROPIC_MODEL": "claude-3-5-sonnet-20241022",
-        },
-        clear=True,
-    )
-    def test_initialize_missing_region(self):
+    @patch("app.external.claude_api.get_settings")
+    def test_initialize_missing_region(self, mock_get_settings):
         """initialize - AWS_REGION 未設定"""
+        mock_get_settings.return_value = create_mock_settings(
+            aws_region=None,
+        )
+
         client = ClaudeAPIClient()
 
         with pytest.raises(APIError) as exc_info:
@@ -130,17 +96,13 @@ class TestClaudeAPIClientInitialize:
 
         assert "AWS認証情報が設定されていません" in str(exc_info.value)
 
-    @patch.dict(
-        os.environ,
-        {
-            "AWS_ACCESS_KEY_ID": "test_key",
-            "AWS_SECRET_ACCESS_KEY": "test_secret",
-            "AWS_REGION": "us-east-1",
-        },
-        clear=True,
-    )
-    def test_initialize_missing_anthropic_model(self):
+    @patch("app.external.claude_api.get_settings")
+    def test_initialize_missing_anthropic_model(self, mock_get_settings):
         """initialize - ANTHROPIC_MODEL 未設定"""
+        mock_get_settings.return_value = create_mock_settings(
+            anthropic_model=None,
+        )
+
         client = ClaudeAPIClient()
 
         with pytest.raises(APIError) as exc_info:
@@ -149,17 +111,10 @@ class TestClaudeAPIClientInitialize:
         assert "ANTHROPIC_MODELが設定されていません" in str(exc_info.value)
 
     @patch("app.external.claude_api.AnthropicBedrock")
-    @patch.dict(
-        os.environ,
-        {
-            "AWS_ACCESS_KEY_ID": "test_key",
-            "AWS_SECRET_ACCESS_KEY": "test_secret",
-            "AWS_REGION": "us-east-1",
-            "ANTHROPIC_MODEL": "claude-3-5-sonnet-20241022",
-        },
-    )
-    def test_initialize_anthropic_bedrock_error(self, mock_anthropic_bedrock):
+    @patch("app.external.claude_api.get_settings")
+    def test_initialize_anthropic_bedrock_error(self, mock_get_settings, mock_anthropic_bedrock):
         """initialize - AnthropicBedrock 初期化エラー"""
+        mock_get_settings.return_value = create_mock_settings()
         mock_anthropic_bedrock.side_effect = Exception("認証エラー")
 
         client = ClaudeAPIClient()
@@ -171,40 +126,54 @@ class TestClaudeAPIClientInitialize:
         assert "認証エラー" in str(exc_info.value)
 
     @patch("app.external.claude_api.AnthropicBedrock")
-    @patch.dict(
-        os.environ,
-        {
-            "AWS_ACCESS_KEY_ID": "",
-            "AWS_SECRET_ACCESS_KEY": "test_secret",
-            "AWS_REGION": "us-east-1",
-            "ANTHROPIC_MODEL": "claude-3-5-sonnet-20241022",
-        },
-    )
-    def test_initialize_empty_credentials(self, mock_anthropic_bedrock):
-        """initialize - 空の認証情報"""
+    @patch("app.external.claude_api.get_settings")
+    def test_initialize_iam_role_mode(self, mock_get_settings, mock_anthropic_bedrock):
+        """initialize - IAMロールモード（アクセスキーなし）"""
+        mock_get_settings.return_value = create_mock_settings(
+            aws_access_key_id=None,
+            aws_secret_access_key=None,
+            aws_region="ap-northeast-1",
+        )
+        mock_client = MagicMock()
+        mock_anthropic_bedrock.return_value = mock_client
+
         client = ClaudeAPIClient()
+        result = client.initialize()
 
-        with pytest.raises(APIError) as exc_info:
-            client.initialize()
+        assert result is True
+        mock_anthropic_bedrock.assert_called_once_with(
+            aws_region="ap-northeast-1",
+        )
 
-        assert "AWS認証情報が設定されていません" in str(exc_info.value)
+    @patch("app.external.claude_api.AnthropicBedrock")
+    @patch("app.external.claude_api.get_settings")
+    def test_initialize_empty_credentials(self, mock_get_settings, mock_anthropic_bedrock):
+        """initialize - 空の認証情報"""
+        mock_get_settings.return_value = create_mock_settings(
+            aws_access_key_id="",
+            aws_secret_access_key="test_secret",
+        )
+        mock_client = MagicMock()
+        mock_anthropic_bedrock.return_value = mock_client
+
+        client = ClaudeAPIClient()
+        result = client.initialize()
+
+        assert result is True
+        # 空文字列はfalsyなのでIAMロールモードになる
+        mock_anthropic_bedrock.assert_called_once_with(
+            aws_region="ap-northeast-1",
+        )
 
 
 class TestClaudeAPIClientGenerateContent:
     """ClaudeAPIClient _generate_content メソッドのテスト"""
 
-    @patch.dict(
-        os.environ,
-        {
-            "AWS_ACCESS_KEY_ID": "test_key",
-            "AWS_SECRET_ACCESS_KEY": "test_secret",
-            "AWS_REGION": "us-east-1",
-            "ANTHROPIC_MODEL": "claude-3-5-sonnet-20241022",
-        },
-    )
-    def test_generate_content_success(self):
+    @patch("app.external.claude_api.get_settings")
+    def test_generate_content_success(self, mock_get_settings):
         """_generate_content - 正常系"""
-        # モッククライアントを設定
+        mock_get_settings.return_value = create_mock_settings()
+
         mock_client = MagicMock()
         mock_response = MagicMock()
         mock_response.content = [TextBlock(type="text", text="生成されたサマリー")]
@@ -222,24 +191,17 @@ class TestClaudeAPIClientGenerateContent:
 
         assert result == ("生成されたサマリー", 1500, 800)
 
-        # messages.create が正しい引数で呼ばれたことを確認
         mock_client.messages.create.assert_called_once_with(
             model="claude-3-5-sonnet-20241022",
             max_tokens=6000,
             messages=[{"role": "user", "content": "テストプロンプト"}],
         )
 
-    @patch.dict(
-        os.environ,
-        {
-            "AWS_ACCESS_KEY_ID": "test_key",
-            "AWS_SECRET_ACCESS_KEY": "test_secret",
-            "AWS_REGION": "us-east-1",
-            "ANTHROPIC_MODEL": "claude-3-5-sonnet-20241022",
-        },
-    )
-    def test_generate_content_empty_response(self):
+    @patch("app.external.claude_api.get_settings")
+    def test_generate_content_empty_response(self, mock_get_settings):
         """_generate_content - 空のレスポンス"""
+        mock_get_settings.return_value = create_mock_settings()
+
         mock_client = MagicMock()
         mock_response = MagicMock()
         mock_response.content = []
@@ -257,17 +219,11 @@ class TestClaudeAPIClientGenerateContent:
 
         assert result == (MESSAGES["ERROR"]["EMPTY_RESPONSE"], 100, 0)
 
-    @patch.dict(
-        os.environ,
-        {
-            "AWS_ACCESS_KEY_ID": "test_key",
-            "AWS_SECRET_ACCESS_KEY": "test_secret",
-            "AWS_REGION": "us-east-1",
-            "ANTHROPIC_MODEL": "claude-3-5-sonnet-20241022",
-        },
-    )
-    def test_generate_content_api_error(self):
+    @patch("app.external.claude_api.get_settings")
+    def test_generate_content_api_error(self, mock_get_settings):
         """_generate_content - API呼び出しエラー"""
+        mock_get_settings.return_value = create_mock_settings()
+
         mock_client = MagicMock()
         mock_client.messages.create.side_effect = Exception("API接続エラー")
 
@@ -281,20 +237,13 @@ class TestClaudeAPIClientGenerateContent:
 
         error_message = str(exc_info.value)
         assert "API接続エラー" in error_message
-        # MESSAGES["BEDROCK_API_ERROR"] のフォーマットを確認
         assert "Amazon Bedrock Claude API呼び出しエラー" in error_message
 
-    @patch.dict(
-        os.environ,
-        {
-            "AWS_ACCESS_KEY_ID": "test_key",
-            "AWS_SECRET_ACCESS_KEY": "test_secret",
-            "AWS_REGION": "us-east-1",
-            "ANTHROPIC_MODEL": "claude-3-5-sonnet-20241022",
-        },
-    )
-    def test_generate_content_uses_anthropic_model(self):
+    @patch("app.external.claude_api.get_settings")
+    def test_generate_content_uses_model_name_param(self, mock_get_settings):
         """_generate_content - 渡された model_name パラメータを使用"""
+        mock_get_settings.return_value = create_mock_settings()
+
         mock_client = MagicMock()
         mock_response = MagicMock()
         mock_response.content = [TextBlock(type="text", text="テキスト")]
@@ -306,27 +255,19 @@ class TestClaudeAPIClientGenerateContent:
         client = ClaudeAPIClient()
         client.client = mock_client
 
-        # model_name パラメータに渡した値が使用される
         test_model = "different-model-name"
         client._generate_content(
             prompt="プロンプト", model_name=test_model
         )
 
-        # 渡された model_name が使用されることを確認
         call_args = mock_client.messages.create.call_args
         assert call_args[1]["model"] == test_model
 
-    @patch.dict(
-        os.environ,
-        {
-            "AWS_ACCESS_KEY_ID": "test_key",
-            "AWS_SECRET_ACCESS_KEY": "test_secret",
-            "AWS_REGION": "us-east-1",
-            "ANTHROPIC_MODEL": "claude-3-5-sonnet-20241022",
-        },
-    )
-    def test_generate_content_max_tokens_6000(self):
+    @patch("app.external.claude_api.get_settings")
+    def test_generate_content_max_tokens_6000(self, mock_get_settings):
         """_generate_content - max_tokens が 6000 に設定"""
+        mock_get_settings.return_value = create_mock_settings()
+
         mock_client = MagicMock()
         mock_response = MagicMock()
         mock_response.content = [TextBlock(type="text", text="テキスト")]
@@ -340,21 +281,14 @@ class TestClaudeAPIClientGenerateContent:
 
         client._generate_content(prompt="プロンプト", model_name="test-model")
 
-        # max_tokens が 6000 であることを確認
         call_args = mock_client.messages.create.call_args
         assert call_args[1]["max_tokens"] == 6000
 
-    @patch.dict(
-        os.environ,
-        {
-            "AWS_ACCESS_KEY_ID": "test_key",
-            "AWS_SECRET_ACCESS_KEY": "test_secret",
-            "AWS_REGION": "us-east-1",
-            "ANTHROPIC_MODEL": "claude-3-5-sonnet-20241022",
-        },
-    )
-    def test_generate_content_message_format(self):
+    @patch("app.external.claude_api.get_settings")
+    def test_generate_content_message_format(self, mock_get_settings):
         """_generate_content - メッセージフォーマット確認"""
+        mock_get_settings.return_value = create_mock_settings()
+
         mock_client = MagicMock()
         mock_response = MagicMock()
         mock_response.content = [TextBlock(type="text", text="結果")]
@@ -369,12 +303,23 @@ class TestClaudeAPIClientGenerateContent:
         test_prompt = "これはテストプロンプトです"
         client._generate_content(prompt=test_prompt, model_name="test-model")
 
-        # messages 引数のフォーマットを確認
         call_args = mock_client.messages.create.call_args
         messages = call_args[1]["messages"]
         assert len(messages) == 1
         assert messages[0]["role"] == "user"
         assert messages[0]["content"] == test_prompt
+
+    @patch("app.external.claude_api.get_settings")
+    def test_generate_content_client_not_initialized(self, mock_get_settings):
+        """_generate_content - クライアント未初期化"""
+        mock_get_settings.return_value = create_mock_settings()
+
+        client = ClaudeAPIClient()
+
+        with pytest.raises(APIError) as exc_info:
+            client._generate_content(prompt="プロンプト", model_name="test-model")
+
+        assert "Claude" in str(exc_info.value)
 
 
 class TestClaudeAPIClientIntegration:
@@ -383,22 +328,13 @@ class TestClaudeAPIClientIntegration:
     @patch("app.external.claude_api.AnthropicBedrock")
     @patch("app.services.prompt_service.get_prompt")
     @patch("app.core.database.get_db_session")
-    @patch.dict(
-        os.environ,
-        {
-            "AWS_ACCESS_KEY_ID": "test_key",
-            "AWS_SECRET_ACCESS_KEY": "test_secret",
-            "AWS_REGION": "us-east-1",
-            "ANTHROPIC_MODEL": "claude-3-5-sonnet-20241022",
-        },
-    )
+    @patch("app.external.claude_api.get_settings")
     def test_full_generate_summary_flow(
-        self, mock_db_session, mock_get_prompt, mock_anthropic_bedrock
+        self, mock_get_settings, mock_db_session, mock_get_prompt, mock_anthropic_bedrock
     ):
         """完全な文書生成フロー"""
-        from unittest.mock import MagicMock
+        mock_get_settings.return_value = create_mock_settings()
 
-        # モック設定
         mock_db = MagicMock()
         mock_db_session.return_value.__enter__.return_value = mock_db
         mock_get_prompt.return_value = None
@@ -412,26 +348,22 @@ class TestClaudeAPIClientIntegration:
         mock_bedrock_client.messages.create.return_value = mock_response
         mock_anthropic_bedrock.return_value = mock_bedrock_client
 
-        # テスト実行
         client = ClaudeAPIClient()
-        result = client.generate_summary(medical_text="患者情報", additional_info="追加情報",
-                                         referral_purpose="精査依頼", current_prescription="処方内容",
-                                         document_type="他院への紹介")
+        result = client.generate_summary(
+            medical_text="患者情報", additional_info="追加情報",
+            referral_purpose="精査依頼", current_prescription="処方内容",
+            document_type="他院への紹介",
+        )
 
         assert result == ("生成された診療情報提供書", 2000, 1000)
 
-    @patch("app.external.claude_api.AnthropicBedrock")
-    @patch.dict(
-        os.environ,
-        {
-            "AWS_SECRET_ACCESS_KEY": "test_secret",
-            "AWS_REGION": "us-east-1",
-            "ANTHROPIC_MODEL": "claude-3-5-sonnet-20241022",
-        },
-        clear=True,
-    )
-    def test_generate_summary_initialization_error(self, mock_anthropic_bedrock):
+    @patch("app.external.claude_api.get_settings")
+    def test_generate_summary_initialization_error(self, mock_get_settings):
         """generate_summary - 初期化エラー"""
+        mock_get_settings.return_value = create_mock_settings(
+            aws_region=None,
+        )
+
         client = ClaudeAPIClient()
 
         with pytest.raises(APIError) as exc_info:
@@ -443,17 +375,11 @@ class TestClaudeAPIClientIntegration:
 class TestClaudeAPIClientEdgeCases:
     """ClaudeAPIClient エッジケース"""
 
-    @patch.dict(
-        os.environ,
-        {
-            "AWS_ACCESS_KEY_ID": "test_key",
-            "AWS_SECRET_ACCESS_KEY": "test_secret",
-            "AWS_REGION": "ap-northeast-1",
-            "ANTHROPIC_MODEL": "claude-3-5-sonnet-20241022",
-        },
-    )
-    def test_generate_content_very_long_prompt(self):
+    @patch("app.external.claude_api.get_settings")
+    def test_generate_content_very_long_prompt(self, mock_get_settings):
         """_generate_content - 非常に長いプロンプト"""
+        mock_get_settings.return_value = create_mock_settings()
+
         mock_client = MagicMock()
         mock_response = MagicMock()
         mock_response.content = [TextBlock(type="text", text="サマリー")]
@@ -470,17 +396,11 @@ class TestClaudeAPIClientEdgeCases:
 
         assert result == ("サマリー", 50000, 1000)
 
-    @patch.dict(
-        os.environ,
-        {
-            "AWS_ACCESS_KEY_ID": "test_key",
-            "AWS_SECRET_ACCESS_KEY": "test_secret",
-            "AWS_REGION": "us-east-1",
-            "ANTHROPIC_MODEL": "claude-3-5-sonnet-20241022",
-        },
-    )
-    def test_generate_content_special_characters_in_prompt(self):
+    @patch("app.external.claude_api.get_settings")
+    def test_generate_content_special_characters_in_prompt(self, mock_get_settings):
         """_generate_content - 特殊文字を含むプロンプト"""
+        mock_get_settings.return_value = create_mock_settings()
+
         mock_client = MagicMock()
         mock_response = MagicMock()
         mock_response.content = [TextBlock(type="text", text="結果")]
@@ -500,23 +420,17 @@ class TestClaudeAPIClientEdgeCases:
         assert result[0] == "結果"
 
     @patch("app.external.claude_api.AnthropicBedrock")
-    @patch.dict(
-        os.environ,
-        {
-            "AWS_ACCESS_KEY_ID": "   ",
-            "AWS_SECRET_ACCESS_KEY": "test_secret",
-            "AWS_REGION": "us-east-1",
-            "ANTHROPIC_MODEL": "claude-3-5-sonnet-20241022",
-        },
-        clear=True,
-    )
-    def test_initialize_whitespace_only_credentials(self, mock_anthropic_bedrock):
+    @patch("app.external.claude_api.get_settings")
+    def test_initialize_whitespace_only_credentials(self, mock_get_settings, mock_anthropic_bedrock):
         """initialize - 空白のみの認証情報"""
+        mock_get_settings.return_value = create_mock_settings(
+            aws_access_key_id="   ",
+            aws_secret_access_key="test_secret",
+        )
         mock_anthropic_bedrock.side_effect = Exception("無効な認証情報")
 
         client = ClaudeAPIClient()
 
-        # 空白のみの認証情報でもall()はTrueになるが、API呼び出し時にエラー
         with pytest.raises(APIError) as exc_info:
             client.initialize()
 

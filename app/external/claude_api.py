@@ -1,23 +1,21 @@
-import os
 from typing import Tuple
 
 from anthropic import AnthropicBedrock
 from anthropic.types import TextBlock
-from dotenv import load_dotenv
 
+from app.core.config import get_settings
 from app.core.constants import MESSAGES
 from app.external.base_api import BaseAPIClient
 from app.utils.exceptions import APIError
 
-load_dotenv()
-
 
 class ClaudeAPIClient(BaseAPIClient):
     def __init__(self):
-        self.aws_access_key_id = os.getenv("AWS_ACCESS_KEY_ID")
-        self.aws_secret_access_key = os.getenv("AWS_SECRET_ACCESS_KEY")
-        self.aws_region = os.getenv("AWS_REGION")
-        self.anthropic_model = os.getenv("ANTHROPIC_MODEL")
+        settings = get_settings()
+        self.aws_access_key_id = settings.aws_access_key_id
+        self.aws_secret_access_key = settings.aws_secret_access_key
+        self.aws_region = settings.aws_region
+        self.anthropic_model = settings.anthropic_model
 
         super().__init__(None, self.anthropic_model)
         self.client = None
