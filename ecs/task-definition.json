@@ -63,6 +63,22 @@
         {
           "name": "CORS_ORIGINS",
           "valueFrom": "arn:aws:secretsmanager:ap-northeast-1:149050210156:secret:medidocs/production:CORS_ORIGINS::"
+        },
+        {
+          "name": "GEMINI_MODEL",
+          "valueFrom": "arn:aws:secretsmanager:ap-northeast-1:149050210156:secret:medidocs/production:GEMINI_MODEL::"
+        },
+        {
+          "name": "GOOGLE_CREDENTIALS_JSON",
+          "valueFrom": "arn:aws:secretsmanager:ap-northeast-1:149050210156:secret:medidocs/production:GOOGLE_CREDENTIALS_JSON::"
+        },
+        {
+          "name": "GOOGLE_PROJECT_ID",
+          "valueFrom": "arn:aws:secretsmanager:ap-northeast-1:149050210156:secret:medidocs/production:GOOGLE_PROJECT_ID::"
+        },
+        {
+          "name": "GOOGLE_LOCATION",
+          "valueFrom": "arn:aws:secretsmanager:ap-northeast-1:149050210156:secret:medidocs/production:GOOGLE_LOCATION::"
         }
       ],
       "healthCheck": {
