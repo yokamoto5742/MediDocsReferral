@@ -1,10 +1,10 @@
 ============================================================
-プロジェクト構造: MediDocsLMreferral
-パス: C:\Users\yokam\PycharmProjects\MediDocsLMreferral
-生成日時: 2026-02-13 13:43:50
+プロジェクト構造: MediDocsReferral
+パス: C:\Users\yokam\PycharmProjects\MediDocsReferral
+生成日時: 2026-02-20 16:11:53
 ============================================================
 
-└── MediDocsLMreferral
+└── MediDocsReferral
     ├── app
     │   ├── api
     │   │   ├── __init__.py
@@ -80,8 +80,12 @@
     │   ├── __init__.py
     │   └── main.py
     ├── docs
+    │   ├── aws-setup-guide.md
     │   ├── CHANGELOG.md
     │   └── LICENSE
+    ├── ecs
+    │   ├── iam-policies.json
+    │   └── task-definition.json
     ├── frontend
     │   ├── src
     │   │   ├── styles
@@ -96,8 +100,9 @@
     │   ├── tailwind.config.js
     │   ├── tsconfig.json
     │   └── vite.config.ts
-    ├── Procfile
+    ├── Dockerfile
     ├── requirements.txt
+    ├── .dockerignore
     ├── .python-version
     ├── CLAUDE.md
     ├── package.json
