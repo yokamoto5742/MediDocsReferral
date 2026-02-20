@@ -79,6 +79,34 @@
         {
           "name": "GOOGLE_LOCATION",
           "valueFrom": "arn:aws:secretsmanager:ap-northeast-1:149050210156:secret:medidocs/production:GOOGLE_LOCATION::"
+        },
+        {
+          "name": "PROMPT_MANAGEMENT",
+          "valueFrom": "arn:aws:secretsmanager:ap-northeast-1:149050210156:secret:medidocs/production:PROMPT_MANAGEMENT::"
+        },
+        {
+          "name": "MAX_INPUT_TOKENS",
+          "valueFrom": "arn:aws:secretsmanager:ap-northeast-1:149050210156:secret:medidocs/production:MAX_INPUT_TOKENS::"
+        },
+        {
+          "name": "MIN_INPUT_TOKENS",
+          "valueFrom": "arn:aws:secretsmanager:ap-northeast-1:149050210156:secret:medidocs/production:MIN_INPUT_TOKENS::"
+        },
+        {
+          "name": "MAX_TOKEN_THRESHOLD",
+          "valueFrom": "arn:aws:secretsmanager:ap-northeast-1:149050210156:secret:medidocs/production:MAX_TOKEN_THRESHOLD::"
+        },
+        {
+          "name": "CLOUDFLARE_ACCOUNT_ID",
+          "valueFrom": "arn:aws:secretsmanager:ap-northeast-1:149050210156:secret:medidocs/production:CLOUDFLARE_ACCOUNT_ID::"
+        },
+        {
+          "name": "CLOUDFLARE_GATEWAY_ID",
+          "valueFrom": "arn:aws:secretsmanager:ap-northeast-1:149050210156:secret:medidocs/production:CLOUDFLARE_GATEWAY_ID::"
+        },
+        {
+          "name": "CLOUDFLARE_AIG_TOKEN",
+          "valueFrom": "arn:aws:secretsmanager:ap-northeast-1:149050210156:secret:medidocs/production:CLOUDFLARE_AIG_TOKEN::"
         }
       ],
       "healthCheck": {
