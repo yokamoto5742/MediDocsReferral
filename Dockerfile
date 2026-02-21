@@ -19,8 +19,10 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+
+COPY requirements.lock .
+RUN uv pip install --no-cache-dir --system --require-hashes -r requirements.lock
 
 COPY --from=builder /app/app/static/dist app/static/dist
 
