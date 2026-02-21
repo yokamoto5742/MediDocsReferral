@@ -15,31 +15,13 @@
 aws sts get-caller-identity --query Account --output text
 ```
 
-出力された12桁の数字が`ACCOUNT_ID`。以降の手順では `123456789012` をご自身のIDに読み替えてください。
+出力された12桁の数字が`ACCOUNT_ID`。以降の手順では `149050210156` を使用。
 
 ---
 
 ## STEP 1: {ACCOUNT_ID} を実際のIDに置換
 
 `ecs/task-definition.json` と `ecs/iam-policies.json` 内のプレースホルダーを実際の値に置換します。
-
-```bash
-# Macの場合
-ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-sed -i '' "s/{ACCOUNT_ID}/${ACCOUNT_ID}/g" ecs/task-definition.json
-sed -i '' "s/{ACCOUNT_ID}/${ACCOUNT_ID}/g" ecs/iam-policies.json
-
-# Linuxの場合
-ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-sed -i "s/{ACCOUNT_ID}/${ACCOUNT_ID}/g" ecs/task-definition.json
-sed -i "s/{ACCOUNT_ID}/${ACCOUNT_ID}/g" ecs/iam-policies.json
-```
-
-置換後に確認:
-
-```bash
-grep -n "ACCOUNT_ID" ecs/task-definition.json  # 何も出力されなければOK
-```
 
 ---
 
@@ -163,8 +145,6 @@ AWSコンソール → **RDS** → 「データベースを作成」
 
 「データベースを作成」をクリック（作成に約5分かかります）
 
-> 作成後、「エンドポイント」に表示されるホスト名（例: `medidocs-db.xxxx.ap-northeast-1.rds.amazonaws.com`）をメモしておく
-
 ---
 
 ### 2-4. ECRリポジトリの作成
@@ -198,6 +178,12 @@ AWSコンソール → **Elastic Container Registry** → 「リポジトリを�
 
 ### 2-5. ACM証明書の取得
 
+まずRoute 53でドメイン取得
+AWSコンソール → **Route 53** → 「ドメインの登録」
+1. `medidocslm.com` を検索して購入手続きを進める
+2. 登録者情報（氏名・住所・電話番号）を入力
+3. 購入完了後、自動的にホストゾーンが作成される（数分〜1時間程度）
+
 AWSコンソール → **Certificate Manager** → 「証明書をリクエスト」
 
 > ⚠️ **必ず東京リージョン（ap-northeast-1）で作成すること**
@@ -205,27 +191,13 @@ AWSコンソール → **Certificate Manager** → 「証明書をリクエス�
 | 項目 | 値 |
 |---|---|
 | 証明書タイプ | パブリック証明書 |
-| ドメイン名 | `medidocsreferral.com` |
-| 追加ドメイン名 | `*.medidocsreferral.com` |
+| ドメイン名 | `medidocslm.com` |
+| 追加ドメイン名 | `*.medidocslm.com` |
 | 検証方法 | **DNS検証** |
 
 リクエスト後:
 1. 証明書の詳細ページで「Route 53でレコードを作成」をクリック（検証用CNAMEレコードが自動作成される）
 2. ステータスが「発行済み」になるまで待つ（5〜30分程度）
-
-> Route 53でドメイン取得直後は「Route 53でレコードを作成」ボタンが表示される
-
----
-
-### 2-6. Route 53でドメイン取得
-
-AWSコンソール → **Route 53** → 「ドメインの登録」
-
-1. `medidocsreferral.com` を検索して購入手続きを進める
-2. 登録者情報（氏名・住所・電話番号）を入力
-3. 購入完了後、自動的にホストゾーンが作成される（数分〜1時間程度）
-
----
 
 ### 2-7. ALBの作成
 
@@ -268,7 +240,7 @@ ALB作成画面に戻り:
 | HTTPS | 443 | `medidocs-tg-1` へ転送 |
 
 HTTPS リスナーの「セキュリティリスナー設定」で:
-- デフォルトSSL/TLS証明書: 先ほどACMで作成した `medidocsreferral.com` を選択
+- デフォルトSSL/TLS証明書: 先ほどACMで作成した `medidocslm.com` を選択
 
 「ロードバランサーを作成」をクリック
 
@@ -284,8 +256,6 @@ HTTPS リスナーの「セキュリティリスナー設定」で:
    - プロトコル: HTTPS
    - ポート: 443
    - ステータスコード: 301
-
----
 
 ## STEP 3: IAMロールの作成
 
@@ -313,7 +283,10 @@ AWSコンソール → **IAM** → 「ロール」 → 「ロールを作成」
         "bedrock:InvokeModel",
         "bedrock:InvokeModelWithResponseStream"
       ],
-      "Resource": "arn:aws:bedrock:ap-northeast-1::foundation-model/*"
+			"Resource": [
+				"arn:aws:bedrock:ap-northeast-1::foundation-model/*",
+				"arn:aws:bedrock:ap-northeast-1:149050210156:inference-profile/*"
+			]
     }
   ]
 }
@@ -325,7 +298,7 @@ AWSコンソール → **IAM** → 「ロール」 → 「ロールを作成」
 
 ### 3-2. ecsTaskExecutionRole（実行ロール）
 
-同様に「ロールを作成」:
+「ロールを作成」:
 
 | 項目 | 値 |
 |---|---|
@@ -349,13 +322,11 @@ AWSコンソール → **IAM** → 「ロール」 → 「ロールを作成」
       "Action": [
         "secretsmanager:GetSecretValue"
       ],
-      "Resource": "arn:aws:secretsmanager:ap-northeast-1:123456789012:secret:medidocs/*"
+      "Resource": "arn:aws:secretsmanager:ap-northeast-1:149050210156:secret:medidocs/*"
     }
   ]
 }
 ```
-
-> `123456789012` を実際のACCOUNT_IDに置換すること
 
 ポリシー名: `SecretsManagerReadPolicy`
 
@@ -370,27 +341,21 @@ AWSコンソール → **Secrets Manager** → 「新しいシークレットを
 | シークレットのタイプ | **その他のシークレットのタイプ** |
 | シークレット名 | `medidocs/production` |
 
-「キーと値のペア」で以下を追加（「+ キーと値のペアを追加」をクリックして1つずつ入力）:
+「キーと値のペア」で以下を追加
 
 | キー | 値 |
 |---|---|
-| `POSTGRES_HOST` | RDSのエンドポイント（例: `medidocs-db.xxxx.ap-northeast-1.rds.amazonaws.com`） |
+| `POSTGRES_HOST` | RDSのエンドポイント（例: `medidocs-db.cbok46o0ycgt.ap-northeast-1.rds.amazonaws.com`） |
 | `POSTGRES_PORT` | `5432` |
 | `POSTGRES_USER` | `postgres` |
 | `POSTGRES_PASSWORD` | RDS作成時に設定したパスワード |
 | `POSTGRES_DB` | `medidocs` |
 | `POSTGRES_SSL` | `true` |
-| `ANTHROPIC_MODEL` | 使用するモデルID（例: `anthropic.claude-3-5-sonnet-20241022-v2:0`） |
-| `CSRF_SECRET_KEY` | 32文字以上のランダム文字列（下記コマンドで生成） |
-| `CORS_ORIGINS` | `["https://medidocsreferral.com"]` |
+| `ANTHROPIC_MODEL` | 使用するモデルID（例: `jp.anthropic.claude-sonnet-4-6`） |
+| `CSRF_SECRET_KEY` | 32文字以上のランダム文字列|
+| `CORS_ORIGINS` | `["https://medidocslm.com"]` |
 
-**ランダム文字列の生成:**
-
-```bash
-python3 -c "import secrets; print(secrets.token_hex(32))"
-```
-
-「次へ」→「次へ」→「保存」
+「次へ」→「保存」
 
 ---
 
@@ -437,7 +402,7 @@ aws ecs register-task-definition \
 ```json
 {
   "taskDefinition": {
-    "taskDefinitionArn": "arn:aws:ecs:ap-northeast-1:123456789012:task-definition/medidocs-referral:1",
+    "taskDefinitionArn": "arn:aws:ecs:ap-northeast-1:149050210156:task-definition/medidocs-referral:1",
     "family": "medidocs-referral",
     ...
   }
@@ -469,6 +434,8 @@ AWSコンソール → **ECS** → `medidocs-cluster` → 「サービスを作�
 | サービス名 | `medidocs-referral-service` |
 | 必要なタスク | `1` |
 
+**ヘルスチェックの猶予期間:** `60` 秒
+
 **ネットワーキング:**
 
 | 項目 | 値 |
@@ -478,7 +445,7 @@ AWSコンソール → **ECS** → `medidocs-cluster` → 「サービスを作�
 | セキュリティグループ | `medidocs-sg-ecs` |
 | パブリックIP | **オン**（ENABLED） |
 
-> ⚠️ パブリックIPをオンにしないとECSタスクがBedrock/ECRに通信できない
+パブリックIPをオンにしないとECSタスクがBedrock/ECRに通信できない
 
 **ロードバランシング:**
 
@@ -489,8 +456,6 @@ AWSコンソール → **ECS** → `medidocs-cluster` → 「サービスを作�
 | コンテナ | `medidocs-referral:8000:8000` |
 | リスナー | 既存のリスナーを使用 → HTTPS:443 |
 | ターゲットグループ | `medidocs-tg-1`（既存を使用） |
-
-**ヘルスチェックの猶予期間:** `60` 秒
 
 「サービスを作成」をクリック
 
@@ -511,40 +476,11 @@ chmod +x scripts/deploy.sh
 ./scripts/deploy.sh
 ```
 
-または手動で:
-
-```bash
-export ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-export REGION="ap-northeast-1"
-
-# ECRにログイン
-aws ecr get-login-password --region ${REGION} | \
-  docker login --username AWS --password-stdin ${ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com
-
-# Dockerイメージをビルド（Apple Siliconの場合は --platform linux/amd64 が必須）
-docker build --platform linux/amd64 -t medidocs-referral .
-
-# ECRにプッシュ
-docker tag medidocs-referral:latest \
-  ${ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com/medidocs-referral:latest
-docker push ${ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com/medidocs-referral:latest
-
-# ECSサービスを強制更新
-aws ecs update-service \
-  --cluster medidocs-cluster \
-  --service medidocs-referral-service \
-  --force-new-deployment \
-  --region ${REGION}
-```
-
----
-
 ### 7-2. 動作確認
 
 **ヘルスチェックの確認:**
 
 ```bash
-# ALBのDNS名を取得
 ALB_DNS=$(aws elbv2 describe-load-balancers \
   --names medidocs-alb \
   --query 'LoadBalancers[0].DNSName' \
@@ -553,7 +489,6 @@ ALB_DNS=$(aws elbv2 describe-load-balancers \
 
 echo "ALB DNS: ${ALB_DNS}"
 
-# ヘルスチェック（院内ネットワークから実行）
 curl -k https://${ALB_DNS}/health
 # {"status": "healthy"} が返ればOK
 ```
@@ -562,72 +497,18 @@ curl -k https://${ALB_DNS}/health
 
 ```bash
 # 最新のログを確認
-aws logs tail /ecs/medidocs-referral --follow --region ap-northeast-1
+MSYS_NO_PATHCONV=1 aws logs filter-log-events \
+  --log-group-name "/ecs/medidocs-referral" \
+  --region ap-northeast-1
 ```
 
 ---
 
 ### 7-3. データ移行（Heroku PostgreSQL → RDS）
 
-RDSはプライベートサブネットのため、踏み台EC2を経由します。
-
-**踏み台EC2の作成（一時的）:**
-
-1. AWSコンソール → EC2 → 「インスタンスを起動」
-   - AMI: Amazon Linux 2023
-   - インスタンスタイプ: t3.micro（無料枠）
-   - ネットワーク: `medidocs-vpc` → **パブリックサブネット**
-   - パブリックIPの自動割り当て: **有効**
-   - セキュリティグループ: 自分のIPからSSH(22)許可
-2. キーペアを作成・ダウンロード
-
-**踏み台でPostgreSQLクライアントをインストール:**
-
-```bash
-# 踏み台EC2にSSH接続
-ssh -i your-key.pem ec2-user@<踏み台のパブリックIP>
-
-# PostgreSQLクライアントをインストール
-sudo dnf install -y postgresql15
-```
-
-**RDSのSecurity Groupに踏み台SGからのアクセスを追加:**
-
-- `medidocs-sg-rds` のインバウンドルールに PostgreSQL:5432 / 踏み台のSGまたはIP を追加
-
-**Herokuからダンプ取得→RDSへ復元:**
-
-ローカルマシンで:
-
-```bash
-# Herokuからダンプ取得
-heroku pg:backups:capture --app your-heroku-app-name
-heroku pg:backups:download --app your-heroku-app-name
-# latest.dump がダウンロードされる
-
-# ダンプを踏み台EC2に転送
-scp -i your-key.pem latest.dump ec2-user@<踏み台のパブリックIP>:~/
-```
-
-踏み台EC2で:
-
-```bash
-# RDSに復元
-pg_restore --verbose --clean --no-acl --no-owner \
-  -h <RDSエンドポイント> \
-  -U postgres \
-  -d medidocs \
-  latest.dump
-# パスワード入力プロンプトが出たらRDSのパスワードを入力
-```
-
-**データ移行後: 踏み台EC2を停止・削除**（課金を止めるため）
-
----
-
 ### 7-4. Route 53でDNSを設定（本番切り替え）
 
-AWSコンソール → **Route 53** → 「ホストゾーン」 → `medidocsreferral.com`
+AWSコンソール → **Route 53** → 「ホストゾーン」 → `medidocslm.com`
 
 「レコードを作成」:
 
@@ -642,53 +523,14 @@ AWSコンソール → **Route 53** → 「ホストゾーン」 → `medidocsre
 
 「レコードを作成」をクリック
 
-**Herokuカスタムドメインを削除（DNS切り替え後）:**
-
-```bash
-heroku domains:remove medidocsreferral.com --app your-heroku-app-name
-```
-
 ---
 
 ### 7-5. 本番動作確認
 
 ブラウザ（院内ネットワーク）で以下にアクセス:
 
-- `https://medidocsreferral.com/health` → `{"status": "healthy"}`
-- `https://medidocsreferral.com/` → メインページが表示される
+- `https://medidocslm.com/health` → `{"status": "healthy"}`
+- `https://medidocslm.com/` → メインページが表示される
 - 要約生成機能でBedrock APIが正常動作することを確認
 - SSEストリーミングが途中で切断されないことを確認
-- 院内IP以外からのアクセスが拒否されることを確認（スマートフォンのモバイル回線等で確認）
-
----
-
-## トラブルシューティング
-
-### ECSタスクがSTOPPEDになる
-
-```bash
-# 停止理由を確認
-aws ecs describe-tasks \
-  --cluster medidocs-cluster \
-  --tasks $(aws ecs list-tasks --cluster medidocs-cluster --query 'taskArns[0]' --output text) \
-  --region ap-northeast-1 \
-  --query 'tasks[0].stoppedReason'
-```
-
-### ヘルスチェックが通らない
-
-- `sg-ecs` のインバウンドルールで `sg-alb` からポート8000が許可されているか確認
-- CloudWatch Logsでアプリのエラーログを確認
-- `POSTGRES_HOST` 等の環境変数がSecrets Managerで正しく設定されているか確認
-
-### Bedrock APIエラー
-
-- `medidocsTaskRole` に `bedrock:InvokeModel` 権限が付与されているか確認
-- `AWS_REGION` が `ap-northeast-1` になっているか確認
-- Bedrock コンソールでClaude 3.5 Sonnetが東京リージョンで有効化されているか確認
-  - AWSコンソール → Amazon Bedrock → 「モデルアクセス」→ Claudeモデルを有効化
-
-### ECRからイメージがプルできない
-
-- ECSタスクのパブリックIPが有効になっているか確認（`assignPublicIp: ENABLED`）
-- `ecsTaskExecutionRole` に `AmazonECSTaskExecutionRolePolicy` が付与されているか確認
+- 固定IP以外からのアクセスが拒否されることを確認（スマートフォンのモバイル回線等で確認）
