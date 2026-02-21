@@ -8,7 +8,6 @@ from app.external.api_factory import (
     generate_summary_with_provider,
 )
 from app.external.claude_api import ClaudeAPIClient
-from app.external.cloudflare_claude_api import CloudflareClaudeAPIClient
 from app.external.cloudflare_gemini_api import CloudflareGeminiAPIClient
 from app.external.gemini_api import GeminiAPIClient
 from app.utils.exceptions import APIError
@@ -49,8 +48,8 @@ class TestCreateClient:
         assert isinstance(client, ClaudeAPIClient)
 
     @patch("app.external.api_factory.get_settings")
-    def test_create_client_claude_enum_with_cloudflare(self, mock_get_settings):
-        """クライアント作成 - Claude（Enum）Cloudflare設定あり"""
+    def test_create_client_claude_enum_with_cloudflare_returns_direct(self, mock_get_settings):
+        """クライアント作成 - Claude（Enum）Cloudflare設定ありでも直接クライアント"""
         mock_settings = MagicMock()
         mock_settings.cloudflare_account_id = "test-account"
         mock_settings.cloudflare_gateway_id = "test-gateway"
@@ -58,7 +57,7 @@ class TestCreateClient:
         mock_get_settings.return_value = mock_settings
 
         client = create_client(APIProvider.CLAUDE)
-        assert isinstance(client, CloudflareClaudeAPIClient)
+        assert isinstance(client, ClaudeAPIClient)
 
     @patch("app.external.api_factory.get_settings")
     def test_create_client_gemini_enum_without_cloudflare(self, mock_get_settings):
@@ -97,8 +96,8 @@ class TestCreateClient:
         assert isinstance(client, ClaudeAPIClient)
 
     @patch("app.external.api_factory.get_settings")
-    def test_create_client_claude_string_with_cloudflare(self, mock_get_settings):
-        """クライアント作成 - Claude（文字列）Cloudflare設定あり"""
+    def test_create_client_claude_string_with_cloudflare_returns_direct(self, mock_get_settings):
+        """クライアント作成 - Claude（文字列）Cloudflare設定ありでも直接クライアント"""
         mock_settings = MagicMock()
         mock_settings.cloudflare_account_id = "test-account"
         mock_settings.cloudflare_gateway_id = "test-gateway"
@@ -106,7 +105,7 @@ class TestCreateClient:
         mock_get_settings.return_value = mock_settings
 
         client = create_client("claude")
-        assert isinstance(client, CloudflareClaudeAPIClient)
+        assert isinstance(client, ClaudeAPIClient)
 
     @patch("app.external.api_factory.get_settings")
     def test_create_client_gemini_string_without_cloudflare(self, mock_get_settings):

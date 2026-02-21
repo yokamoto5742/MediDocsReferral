@@ -142,7 +142,6 @@ MESSAGES: dict[str, dict[str, str]] = {
         "RE_EVALUATE": "前回の評価をクリアして再評価しますか？",
     },
     "LOG": {
-        "CLIENT_CLOUDFLARE_CLAUDE": "APIクライアント選択: CloudflareClaudeAPIClient",
         "CLIENT_CLOUDFLARE_GEMINI": "APIクライアント選択: CloudflareGeminiAPIClient",
         "CLIENT_DIRECT_CLAUDE": "APIクライアント選択: ClaudeAPIClient (Direct Amazon Bedrock)",
         "CLIENT_DIRECT_GEMINI": "APIクライアント選択: GeminiAPIClient (Direct Vertex AI)",

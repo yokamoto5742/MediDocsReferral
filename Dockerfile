@@ -1,4 +1,4 @@
-FROM python:3.12-slim AS builder
+FROM python:3.13-slim AS builder
 
 WORKDIR /app
 
@@ -15,7 +15,7 @@ COPY frontend/ frontend/
 COPY app/templates/ app/templates/
 RUN cd frontend && npm run build
 
-FROM python:3.12-slim
+FROM python:3.13-slim
 
 WORKDIR /app
 
