@@ -15,3 +15,9 @@ logs/
 *.log
 .coverage
 htmlcov/
+requirements-dev.lock
+pyproject.toml
+.venv/
+alembic/versions/__pycache__/
+scripts/
+docs/

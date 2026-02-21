@@ -1,30 +1,28 @@
-FROM python:3.13-slim AS builder
+# Stage 1: フロントエンドビルド（公式Node.jsイメージを使用）
+FROM node:20-slim AS frontend-builder
 
-WORKDIR /app
+WORKDIR /app/frontend
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci
 
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends curl && \
-    curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
-    apt-get install -y --no-install-recommends nodejs && \
-    apt-get clean && rm -rf /var/lib/apt/lists/*
+COPY frontend/ .
+COPY app/templates/ /app/app/templates/
+RUN npm run build
 
-COPY frontend/package.json frontend/package-lock.json frontend/
-RUN cd frontend && npm ci
-
-COPY frontend/ frontend/
-COPY app/templates/ app/templates/
-RUN cd frontend && npm run build
-
+# Stage 2: Python本番イメージ
 FROM python:3.13-slim
 
 WORKDIR /app
 
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+# uvバージョンを固定
+COPY --from=ghcr.io/astral-sh/uv:0.9.6 /uv /uvx /bin/
 
+# 本番依存のみインストール（ハッシュ検証付き）
 COPY requirements.lock .
 RUN uv pip install --no-cache-dir --system --require-hashes -r requirements.lock
 
-COPY --from=builder /app/app/static/dist app/static/dist
+# フロントエンドビルド成果物をコピー
+COPY --from=frontend-builder /app/app/static/dist app/static/dist
 
 COPY app/ app/
 COPY alembic/ alembic/
