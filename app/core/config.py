@@ -2,6 +2,7 @@ import json
 import logging
 import os
 from functools import lru_cache
+from urllib.parse import quote_plus
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -110,8 +111,9 @@ class Settings(BaseSettings):
                 url = url.replace("postgres://", "postgresql://", 1)
             return url
         ssl_param = "?sslmode=require" if self.postgres_ssl else ""
+        encoded_password = quote_plus(self.postgres_password)
         return (
-            f"postgresql://{self.postgres_user}:{self.postgres_password}"
+            f"postgresql://{self.postgres_user}:{encoded_password}"
             f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}{ssl_param}"
         )
 
