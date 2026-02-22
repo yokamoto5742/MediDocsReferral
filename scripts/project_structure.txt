@@ -1,7 +1,7 @@
 ============================================================
 プロジェクト構造: MediDocsReferral
 パス: C:\Users\yokam\PycharmProjects\MediDocsReferral
-生成日時: 2026-02-20 16:11:53
+生成日時: 2026-02-22 17:02:21
 ============================================================
 
 └── MediDocsReferral
@@ -80,7 +80,6 @@
     │   ├── __init__.py
     │   └── main.py
     ├── docs
-    │   ├── aws-setup-guide.md
     │   ├── CHANGELOG.md
     │   └── LICENSE
     ├── ecs
@@ -101,10 +100,12 @@
     │   ├── tsconfig.json
     │   └── vite.config.ts
     ├── Dockerfile
-    ├── requirements.txt
+    ├── pyproject.toml
     ├── .dockerignore
     ├── .python-version
     ├── CLAUDE.md
     ├── package.json
     ├── pyrightconfig.json
-    └── README.md
+    ├── README.md
+    ├── requirements-dev.lock
+    └── requirements.lock

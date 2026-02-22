@@ -5,7 +5,7 @@
 ## 機能
 
 ### コア機能
-- **複数のAIプロバイダーサポート**: Claude（AWS Bedrock/直接API）とGemini（Vertex AI）に統合
+- **複数のAIプロバイダーサポート**: Claude（AWS Bedrock経由）とGemini（Vertex AI経由）に統合
 - **自動モデル切り替え**: 入力文字数が指定の閾値を超えた場合、Claudeから自動的にGeminiに切り替え
 - **構造化文書生成**: 標準化されたセクションで医療文書を生成
 
@@ -41,16 +41,17 @@
 - **Python** 3.13以上
 - **PostgreSQL** 16以上
 - **Node.js** 18以上（フロントエンド開発用）
-- **AI APIアカウント**:
-  - AWS BedrockアクセスのClaude API
-  - Vertex AIが有効化されたGoogle Cloud Platformアカウント
+- **AI APIアカウント**（以下のうち少なくとも1つ）:
+  - AWS Bedrockアクセス権限（Claude API用）
+  - Google Cloud PlatformアカウントにVertex AI有効化（Gemini API用）
+  - Cloudflare AI Gateway（オプション、APIプロキシング用）
 
 ## インストール
 
 ### 1. リポジトリのクローン
 ```bash
 git clone <repository-url>
-cd MediDocsLMreferral
+cd MediDocsReferral
 ```
 
 ### 2. 仮想環境の作成と有効化
@@ -78,6 +79,11 @@ createdb medidocs
 ### 5. 環境変数の設定
 プロジェクトルートに`.env`ファイルを作成します。詳細は「環境変数の設定」セクションを参照。
 
+環境変数は以下の優先順位で読み込まれます：
+1. OS環境変数（既存の値は上書きされない）
+2. AWS Secrets Manager（`AWS_SECRET_NAME`で指定、デフォルト: `medidocs/prod`）
+3. `.env`ファイル
+
 ## 環境変数の設定
 
 `.env`ファイルにおける主要な設定項目です。
@@ -104,10 +110,13 @@ DATABASE_URL=postgresql://user:password@host:port/database
 
 ### Claude API設定(AWS Bedrock)
 ```env
+# ローカル開発環境（アクセスキーを使用する場合）
 AWS_ACCESS_KEY_ID=your_aws_access_key
 AWS_SECRET_ACCESS_KEY=your_aws_secret_key
 AWS_REGION=ap-northeast-1
 ANTHROPIC_MODEL=anthropic.claude-3-5-sonnet-20241022-v2:0
+
+# EC2/ECS環境（IAMロール自動検出を使用する場合、上記は不要）
 ```
 
 ### Google Vertex AI設定
@@ -117,8 +126,9 @@ GOOGLE_CREDENTIALS_JSON={"type":"service_account","project_id":"your-project",..
 
 # Vertex AI設定
 GOOGLE_PROJECT_ID=your-gcp-project-id
-GOOGLE_LOCATION=asia-northeast1
+GOOGLE_LOCATION=global
 GEMINI_MODEL=gemini-2.0-flash
+GEMINI_EVALUATION_MODEL=gemini-2.0-flash
 GEMINI_THINKING_LEVEL=HIGH
 ```
 
@@ -151,6 +161,9 @@ CORS_ORIGINS=["http://localhost:8000","http://127.0.0.1:8000"]
 CORS_ALLOW_CREDENTIALS=true
 CORS_ALLOW_METHODS=["GET","POST","PUT","DELETE","OPTIONS"]
 CORS_ALLOW_HEADERS=["*"]
+
+# AWS Secrets Manager（オプション）
+AWS_SECRET_NAME=medidocs/prod
 ```
 
 ## 使用方法
@@ -225,26 +238,28 @@ app/
 │   ├── api_factory.py     # APIクライアント動的生成関数
 │   ├── base_api.py        # ベースAPIクライアント
 │   ├── claude_api.py      # Claude/Bedrock連携
-│   ├── cloudflare_claude_api.py   # Cloudflareを経由したClaude
 │   ├── gemini_api.py      # Gemini/Vertex AI連携
 │   └── cloudflare_gemini_api.py   # Cloudflareを経由したGemini
 ├── models/                # SQLAlchemy ORM モデル
+│   ├── base.py            # ベースモデル
 │   ├── prompt.py          # プロンプトテンプレート
 │   ├── evaluation_prompt.py      # 評価プロンプト
 │   ├── usage.py           # 利用統計
 │   └── setting.py         # アプリケーション設定
 ├── schemas/               # Pydantic スキーマ
-│   ├── summary.py         # リクエスト/レスポンス
+│   ├── summary.py         # 文書生成リクエスト/レスポンス
 │   ├── prompt.py          # プロンプトスキーマ
 │   ├── evaluation.py      # 評価スキーマ
 │   └── statistics.py      # 統計スキーマ
 ├── services/              # ビジネスロジック
-│   ├── summary_service.py      # 文書生成ロジック
-│   ├── prompt_service.py       # プロンプト管理
-│   ├── evaluation_service.py   # 出力評価
-│   ├── statistics_service.py   # 統計処理
-│   ├── model_selector.py       # モデル選択ロジック
-│   └── sse_helpers.py          # Server-Sent Events ヘルパー
+│   ├── summary_service.py           # 文書生成ロジック
+│   ├── prompt_service.py            # プロンプト管理
+│   ├── evaluation_prompt_service.py # 評価プロンプト管理
+│   ├── evaluation_service.py        # 出力評価
+│   ├── statistics_service.py        # 統計処理
+│   ├── usage_service.py             # 使用統計サービス
+│   ├── model_selector.py            # モデル選択ロジック
+│   └── sse_helpers.py               # Server-Sent Events ヘルパー
 ├── utils/                 # ユーティリティ関数
 │   ├── text_processor.py       # テキスト解析
 │   ├── exceptions.py           # カスタム例外
@@ -295,21 +310,23 @@ result = client.generate_summary(medical_text, additional_info, ...)
 
 ### 自動モデル切り替え
 
-`summary_service.py`の`determine_model()`メソッドで実装：
+`model_selector.py`で実装：
 
-- 入力が`MAX_TOKEN_THRESHOLD`（デフォルト100,000文字）を超え、Claudeが選択されている場合、自動的にGeminiに切り替え
-- Geminiが設定されていない場合はエラーを返す
+- `determine_model()`: 入力文字数とDB設定から最適なモデルを決定
+  - `model_explicitly_selected=False`の場合、DBから医師/診療科/文書タイプ別のモデル設定を取得
+  - 入力が`MAX_TOKEN_THRESHOLD`（デフォルト100,000文字）を超え、Claudeが選択されている場合、自動的にGeminiに切り替え
+  - Geminiが設定されていない場合はエラーを返す
+- `get_provider_and_model()`: モデル名からプロバイダーとモデルのIDを取得
 - 閾値は環境変数`MAX_TOKEN_THRESHOLD`で調整可能
-- `prompt_service.py`の`get_selected_model()`にモデル名取得ロジックを集約
 
 ### 階層的プロンプトシステム
 
-プロンプトは以下の順序で解決されます：
+プロンプトは以下の順序で解決されます（`prompt_service.get_prompt()`内）：
 
-1. 医師 + 文書タイプ固有のプロンプト
-2. 診療科 + 文書タイプ固有のプロンプト
-3. 文書タイプのデフォルトプロンプト
-4. システムデフォルト（`config.ini`または環境変数）
+1. 診療科 + 医師 + 文書タイプ固有のプロンプト
+2. 診療科 + デフォルト医師 + 文書タイプ固有のプロンプト
+3. デフォルト診療科 + デフォルト医師 + 文書タイプのデフォルトプロンプト
+4. DBにない場合は`DEFAULT_SUMMARY_PROMPT`定数を使用
 
 これにより、診療科別・医師別のカスタマイズが可能です。
 
@@ -371,7 +388,7 @@ python -m pytest tests/services/test_summary_service.py::test_generate_summary -
 
 ### テスト構造
 
-本プロジェクトは120以上のテストで包括的なテストカバレッジを維持：
+本プロジェクトは367個以上のテストで包括的なテストカバレッジを維持：
 
 - **API統合テスト**: エンドポイントとリクエスト/レスポンス
 - **ビジネスロジック**: サービスレイヤーのユニットテスト
@@ -420,6 +437,7 @@ npm run dev
 ## 型チェック
 
 ```bash
+# 型チェック実行（app/のみ対象、tests/と scripts/は除外）
 pyright
 ```
 
@@ -460,10 +478,16 @@ pyright
 - ユーザー名とパスワードを確認
 
 ### AI APIエラー
-- AWS 認証情報を確認
-- API キーの有効期限とアカウント余額を確認
-- Google Cloud プロジェクト ID と認証情報が正しいか確認
-- Cloudflare設定を使用する場合、`CLOUDFLARE_ACCOUNT_ID`、`CLOUDFLARE_GATEWAY_ID`、`CLOUDFLARE_AIG_TOKEN`が全て設定されているか確認
+- **Claude API エラー**:
+  - AWS Secrets Managerの設定確認（ローカル開発の場合）
+  - IAMロール権限確認（EC2/ECS環境）
+  - `ANTHROPIC_MODEL`環境変数の設定確認
+- **Gemini API エラー**:
+  - Google Cloud プロジェクト ID と認証情報が正しいか確認
+  - `GEMINI_EVALUATION_MODEL`環境変数が設定されているか確認
+  - Vertex AIが有効化されているか確認
+- **Cloudflare設定を使用する場合**:
+  - `CLOUDFLARE_ACCOUNT_ID`、`CLOUDFLARE_GATEWAY_ID`、`CLOUDFLARE_AIG_TOKEN`が全て設定されているか確認
 
 ### テスト失敗
 - `.env.test`ファイルが正しく設定されているか確認
@@ -553,9 +577,11 @@ pyright
 
 - 認証情報を含む`.env`ファイルをコミットしない
 - APIキーを定期的にローテーション
-- すべての機密設定に環境変数を使用
+- すべての機密設定に環境変数を使用（または AWS Secrets Manager）
+- IAMロールの権限は最小限に設定
 - セキュリティパッチのために依存関係を最新に保つ
 - 本番医療現場で使用する前にAI生成コンテンツを専門家がレビュー
+- HTTPS環境では `Strict-Transport-Security` ヘッダーが自動設定される
 
 ## 免責事項
 
