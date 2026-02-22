@@ -10,7 +10,7 @@ from app.core.constants import ModelType
 
 logger = logging.getLogger(__name__)
 
-_SECRET_NAME = os.getenv("AWS_SECRET_NAME", "medidocs/prod")
+_SECRET_NAME = os.getenv("AWS_SECRET_NAME", "medidocs/production")
 
 
 def _load_aws_secrets() -> None:
