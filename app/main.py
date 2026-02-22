@@ -20,12 +20,12 @@ from app.core.constants import (
 from app.core.security import SecurityHeadersMiddleware, generate_csrf_token
 from app.utils.error_handlers import api_exception_handler, validation_exception_handler
 
-settings = get_settings()
-
 logging.basicConfig(
     level=logging.INFO,
     format="%(levelname)s:\t%(name)s - %(message)s",
 )
+
+settings = get_settings()
 
 app = FastAPI(
     title="MediDocsLM API",

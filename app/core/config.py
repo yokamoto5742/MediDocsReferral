@@ -24,15 +24,23 @@ def _load_aws_secrets() -> None:
         client = boto3.client("secretsmanager", region_name=region)
         response = client.get_secret_value(SecretId=_SECRET_NAME)
         secrets: dict[str, str] = json.loads(response["SecretString"])
+        logger.info("Secrets Manager のキー一覧: %s", list(secrets.keys()))
         injected = []
+        skipped = []
         for key, value in secrets.items():
-            if key not in os.environ:
+            if key not in os.environ or os.environ[key] == "":
                 os.environ[key] = str(value)
                 injected.append(key)
+            else:
+                skipped.append(key)
         if injected:
             logger.info("Secrets Manager から環境変数を展開しました: %s", injected)
-    except Exception:
+        if skipped:
+            logger.info("既存の環境変数のためスキップしました: %s", skipped)
+    except ImportError:
         pass
+    except Exception as e:
+        logger.warning("Secrets Manager からの読み込みに失敗しました: %s", e)
 
 
 class Settings(BaseSettings):
@@ -111,4 +119,10 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     _load_aws_secrets()
-    return Settings()
+    s = Settings()
+    if not s.gemini_evaluation_model:
+        logger.warning(
+            "GEMINI_EVALUATION_MODEL が未設定です (os.environ=%s)",
+            os.environ.get("GEMINI_EVALUATION_MODEL", "<未定義>"),
+        )
+    return s
