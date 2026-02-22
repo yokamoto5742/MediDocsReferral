@@ -1,8 +1,38 @@
+import json
+import logging
+import os
 from functools import lru_cache
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from app.core.constants import ModelType
+
+logger = logging.getLogger(__name__)
+
+_SECRET_NAME = os.getenv("AWS_SECRET_NAME", "medidocs/prod")
+
+
+def _load_aws_secrets() -> None:
+    """AWS Secrets ManagerからシークレットをOSの環境変数に展開する
+
+    ローカル環境やSecretsManagerへの接続失敗時は無視する
+    既にセットされている環境変数は上書きしない
+    """
+    region = os.getenv("AWS_REGION", "ap-northeast-1")
+    try:
+        import boto3
+        client = boto3.client("secretsmanager", region_name=region)
+        response = client.get_secret_value(SecretId=_SECRET_NAME)
+        secrets: dict[str, str] = json.loads(response["SecretString"])
+        injected = []
+        for key, value in secrets.items():
+            if key not in os.environ:
+                os.environ[key] = str(value)
+                injected.append(key)
+        if injected:
+            logger.info("Secrets Manager から環境変数を展開しました: %s", injected)
+    except Exception:
+        pass
 
 
 class Settings(BaseSettings):
@@ -80,4 +110,5 @@ class Settings(BaseSettings):
 
 @lru_cache
 def get_settings() -> Settings:
+    _load_aws_secrets()
     return Settings()
