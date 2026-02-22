@@ -8,6 +8,7 @@
         {{ m.textarea_field("現在の処方", "form.currentPrescription", 1) }}
         {{ m.textarea_field("カルテ記載", "form.medicalText", 3) }}
         {{ m.textarea_field("追加情報", "form.additionalInfo", 1) }}
+        <p class="text-sm text-white">患者ID・氏名・住所などの個人情報は入力しないでください</p>
 
         <div class="flex gap-4">
             {{ m.primary_button("作成", "isGenerating", "生成中...", type="submit") }}
