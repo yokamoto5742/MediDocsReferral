@@ -16,9 +16,9 @@ _SECRET_NAME = os.getenv("AWS_SECRET_NAME", "medidocs/prod")
 def _load_aws_secrets() -> None:
     """AWS Secrets ManagerからシークレットをOSの環境変数に展開する
 
-    ローカル環境やSecretsManagerへの接続失敗時は無視する
     既にセットされている環境変数は上書きしない
     """
+    logger.info("AWS_SECRET_NAME=%s", _SECRET_NAME)
     region = os.getenv("AWS_REGION", "ap-northeast-1")
     try:
         import boto3
