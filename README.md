@@ -568,4 +568,3 @@ pyright
 ## 変更履歴
 
 バージョン履歴と更新については、[CHANGELOG.md](docs/CHANGELOG.md)を参照してください。
-"# MediDocsReferral" 
