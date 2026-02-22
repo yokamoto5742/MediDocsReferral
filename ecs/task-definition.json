@@ -23,6 +23,10 @@
           "value": "ap-northeast-1"
         },
         {
+          "name": "AWS_DEFAULT_REGION",
+          "value": "ap-northeast-1"
+        },
+        {
           "name": "SELECTED_AI_MODEL",
           "value": "Claude"
         }
