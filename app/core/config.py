@@ -4,7 +4,6 @@ import os
 from functools import lru_cache
 from urllib.parse import quote_plus
 
-import boto3
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from app.core.constants import ModelType
@@ -15,7 +14,13 @@ _SECRET_NAME = os.getenv("AWS_SECRET_NAME", "medidocs/production")
 
 
 def _load_aws_secrets() -> None:
-    """AWS Secrets ManagerからシークレットをOSの環境変数に展開"""
+    """AWS Secrets ManagerのシークレットをOSの環境変数に展開"""
+    try:
+        import boto3
+    except ImportError:
+        logger.warning("boto3 がインストールされていません。Secrets Manager をスキップします")
+        return
+
     logger.info("AWS_SECRET_NAME=%s", _SECRET_NAME)
     region = os.getenv("AWS_REGION", "ap-northeast-1")
     try:
@@ -35,8 +40,6 @@ def _load_aws_secrets() -> None:
             logger.info("Secrets Manager から環境変数を展開しました: %s", injected)
         if skipped:
             logger.info("既存の環境変数のためスキップしました: %s", skipped)
-    except ImportError:
-        pass
     except Exception as e:
         logger.warning("Secrets Manager からの読み込みに失敗しました: %s", e)
 
@@ -102,11 +105,7 @@ class Settings(BaseSettings):
     def get_database_url(self) -> str:
         """データベース接続URLを構築"""
         if self.database_url:
-            url = self.database_url
-            # Heroku postgres:// → postgresql:// 変換
-            if url.startswith("postgres://"):
-                url = url.replace("postgres://", "postgresql://", 1)
-            return url
+            return self.database_url
         ssl_param = "?sslmode=require" if self.postgres_ssl else ""
         encoded_password = quote_plus(self.postgres_password)
         return (
