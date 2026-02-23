@@ -108,6 +108,7 @@ MESSAGES: dict[str, dict[str, str]] = {
         "INPUT_TOO_LONG": "入力テキストが長すぎます",
         "INPUT_TOO_SHORT": "入力文字数が少なすぎます",
         "NO_INPUT": "カルテ情報を入力してください",
+        "NO_PERSONAL_INFO": "患者ID・氏名・住所などの個人情報は入力しないでください",
         "PROMPT_CONTENT_REQUIRED": "プロンプト内容を入力してください",
     },
     "SUCCESS": {
@@ -193,6 +194,7 @@ FRONTEND_MESSAGES: dict[str, dict[str, str]] = {
         "EVALUATION_NO_OUTPUT": MESSAGES["VALIDATION"]["EVALUATION_NO_OUTPUT"],
         "FIELD_REQUIRED": MESSAGES["VALIDATION"]["FIELD_REQUIRED"],
         "NO_INPUT": MESSAGES["VALIDATION"]["NO_INPUT"],
+        "NO_PERSONAL_INFO": MESSAGES["VALIDATION"]["NO_PERSONAL_INFO"],
         "PROMPT_CONTENT_REQUIRED": MESSAGES["VALIDATION"]["PROMPT_CONTENT_REQUIRED"],
     },
     "SUCCESS": {

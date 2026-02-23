@@ -1,7 +1,7 @@
 ============================================================
 プロジェクト構造: MediDocsReferral
 パス: C:\Users\yokam\PycharmProjects\MediDocsReferral
-生成日時: 2026-02-22 17:02:21
+生成日時: 2026-02-23 14:53:22
 ============================================================
 
 └── MediDocsReferral
@@ -81,7 +81,8 @@
     │   └── main.py
     ├── docs
     │   ├── CHANGELOG.md
-    │   └── LICENSE
+    │   ├── LICENSE
+    │   └── MediDocsReferral_setup.md
     ├── ecs
     │   ├── iam-policies.json
     │   └── task-definition.json
