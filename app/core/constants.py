@@ -130,9 +130,8 @@ MESSAGES: dict[str, dict[str, str]] = {
         "EVALUATION_START": "評価を開始します...",
     },
     "INFO": {
-        "AI_DISCLAIMER": "生成AIは不正確な場合があります。回答をカルテでご確認ください。",
-        "AI_DISCLAIMER_EVALUATION": "生成AIは不正確な場合があります。評価結果は参考としてご確認ください。",
-        "AI_DISCLAIMER_OUTPUT": "生成AIは不正確な場合があります。内容はカルテでご確認ください。",
+        "AI_DISCLAIMER_EVALUATION": "AIは間違えることがあります。内容はカルテでご確認ください。",
+        "AI_DISCLAIMER_OUTPUT": "AIは間違えることがあります。内容はカルテでご確認ください。",
         "DEFAULT_DEPARTMENT_LABEL": "全科共通",
         "DEFAULT_DOCTOR_LABEL": "医師共通",
         "NO_DATA_FOUND": "指定期間のデータがありません",
