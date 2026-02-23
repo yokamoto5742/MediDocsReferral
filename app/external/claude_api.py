@@ -1,5 +1,4 @@
 import logging
-import os
 from typing import Tuple
 
 from anthropic import AnthropicBedrock
@@ -32,16 +31,6 @@ class ClaudeAPIClient(BaseAPIClient):
             if not self.anthropic_model:
                 raise APIError(MESSAGES["CONFIG"]["ANTHROPIC_MODEL_MISSING"])
 
-            logger.info(
-                "Bedrock初期化: aws_region=%s, "
-                "AWS_REGION=%s, AWS_DEFAULT_REGION=%s",
-                self.aws_region,
-                os.environ.get("AWS_REGION", "未設定"),
-                os.environ.get("AWS_DEFAULT_REGION", "未設定"),
-            )
-
-            # アクセスキーが設定されている場合はそれを使用（ローカル開発）
-            # 未設定の場合はIAMロールを自動検出（ECS環境）
             if self.aws_access_key_id and self.aws_secret_access_key:
                 self.client = AnthropicBedrock(
                     aws_access_key=self.aws_access_key_id,
