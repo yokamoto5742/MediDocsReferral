@@ -18,6 +18,10 @@
         }
       ],
       "environment": [
+        {
+          "name": "AWS_DEFAULT_REGION",
+          "value": "ap-northeast-1"
+        }
       ],
       "secrets": [
         {
