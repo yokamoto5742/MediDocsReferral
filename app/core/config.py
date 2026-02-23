@@ -4,6 +4,7 @@ import os
 from functools import lru_cache
 from urllib.parse import quote_plus
 
+import boto3
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from app.core.constants import ModelType
@@ -14,14 +15,10 @@ _SECRET_NAME = os.getenv("AWS_SECRET_NAME", "medidocs/production")
 
 
 def _load_aws_secrets() -> None:
-    """AWS Secrets ManagerからシークレットをOSの環境変数に展開する
-
-    既にセットされている環境変数は上書きしない
-    """
+    """AWS Secrets ManagerからシークレットをOSの環境変数に展開"""
     logger.info("AWS_SECRET_NAME=%s", _SECRET_NAME)
     region = os.getenv("AWS_REGION", "ap-northeast-1")
     try:
-        import boto3
         client = boto3.client("secretsmanager", region_name=region)
         response = client.get_secret_value(SecretId=_SECRET_NAME)
         secrets: dict[str, str] = json.loads(response["SecretString"])
@@ -122,9 +119,4 @@ class Settings(BaseSettings):
 def get_settings() -> Settings:
     _load_aws_secrets()
     s = Settings()
-    if not s.gemini_evaluation_model:
-        logger.warning(
-            "GEMINI_EVALUATION_MODEL が未設定です (os.environ=%s)",
-            os.environ.get("GEMINI_EVALUATION_MODEL", "<未定義>"),
-        )
     return s
