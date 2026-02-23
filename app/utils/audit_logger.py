@@ -1,9 +1,11 @@
 import json
 import logging
-from datetime import UTC, datetime
+from datetime import datetime
 from typing import Any
+from zoneinfo import ZoneInfo
 
 
+JST = ZoneInfo("Asia/Tokyo")
 audit_logger = logging.getLogger("audit")
 
 
@@ -18,12 +20,10 @@ def log_audit_event(
 ) -> None:
     """
     監査ログを記録
-
-    個人情報（PHI）を含む内容は記録しない
     カルテテキスト、生成結果、プロンプト内容は記録対象外
     """
     log_data = {
-        "timestamp": datetime.now(UTC).isoformat(),
+        "timestamp": datetime.now(JST).isoformat(),
         "event_type": event_type,
         "success": success,
     }
