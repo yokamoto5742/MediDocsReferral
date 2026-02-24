@@ -88,8 +88,8 @@ class TestGetDatabaseUrl:
         settings = Settings()
         url = settings.get_database_url()
 
-        # postgres:// が postgresql:// に変換される
-        assert url == "postgresql://user:pass@heroku-host:5432/heroku-db"
+        # DATABASE_URL はそのまま返される
+        assert url == "postgres://user:pass@heroku-host:5432/heroku-db"
 
     @patch.dict(
         os.environ,
@@ -121,7 +121,7 @@ class TestGetDatabaseUrl:
         url = settings.get_database_url()
 
         # DATABASE_URL が優先される（個別設定は無視）
-        assert url == "postgresql://user:pass@host:5432/db"
+        assert url == "postgres://user:pass@host:5432/db"
 
 
 class TestGetSettings:
@@ -158,7 +158,7 @@ class TestSettingsEdgeCases:
         url = settings.get_database_url()
 
         # ポートがない場合も正常に処理
-        assert url == "postgresql://user:pass@host/db"
+        assert url == "postgres://user:pass@host/db"
 
     @patch.dict(
         os.environ,
