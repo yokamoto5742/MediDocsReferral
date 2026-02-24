@@ -2,6 +2,25 @@
 
 このプロジェクトの変更履歴は[Keep a Changelog](https://keepachangelog.com/ja/1.1.0/)の仕様に従い、[セマンティック バージョニング](https://semver.org/lang/ja/)を採用しています。
 
+## [1.0.1] - 2026-02-24
+
+### 追加
+
+- **Bedrockリソースへのアクセス権限拡張**: IAM ポリシーを更新し、AWS Bedrock リソースへのアクセス権限を拡張
+
+### 変更
+
+- **CORSオリジン設定の動的取得**: CORSオリジン設定を環境変数から動的に取得するように改善
+- **AnthropicBedrockの初期化簡略化**: ECS タスク定義から AWS認証情報の設定を削除し、AnthropicBedrockの初期化処理を簡略化
+- **監査ログのタイムゾーン設定**: 監査ログのタイムゾーンをJST（日本標準時）に統一
+
+### 修正
+
+- **Claude API テストの改善**: テストの修正と信頼性の向上
+- **DATABASE_URLのパースロジック**: コンフィグのDATABASE_URLパースロジックを修正
+
+---
+
 ## [1.0.0] - 2026-02-22
 
 ### 追加
@@ -44,4 +63,5 @@
 
 ## リンク
 
+[1.0.1]: https://github.com/yourusername/MediDocsReferral/releases/tag/v1.0.1
 [1.0.0]: https://github.com/yourusername/MediDocsReferral/releases/tag/v1.0.0
