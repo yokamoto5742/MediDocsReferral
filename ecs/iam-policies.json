@@ -1,6 +1,6 @@
 {
   "medidocsTaskRole": {
-    "説昁E: "ECSタスクロール - BedrockのInvoke権限�Eみ付丁E,
+    "説昁E: "ECSタスクロール - BedrockのInvoke権限�Eみ付丁E,
     "AssumeRolePolicyDocument": {
       "Version": "2012-10-17",
       "Statement": [
@@ -22,7 +22,12 @@
             "bedrock:InvokeModel",
             "bedrock:InvokeModelWithResponseStream"
           ],
-          "Resource": "arn:aws:bedrock:ap-northeast-1::foundation-model/*"
+          "Resource": [
+				"arn:aws:bedrock:ap-northeast-1::foundation-model/*",
+				"arn:aws:bedrock:ap-northeast-1:149050210156:inference-profile/*",
+				"arn:aws:bedrock:ap-northeast-3::foundation-model/*",
+				"arn:aws:bedrock:ap-northeast-3:149050210156:inference-profile/*"
+          ]
         }
       ]
     }

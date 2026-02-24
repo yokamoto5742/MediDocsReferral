@@ -34,7 +34,7 @@ app = FastAPI(
     redoc_url=None,
 )
 
-# CORSミドルウェアを追加（明示的なCORS設定）
+# 明示的なCORS設定
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
@@ -43,20 +43,15 @@ app.add_middleware(
     allow_headers=settings.cors_allow_headers,
 )
 
-# セキュリティヘッダーミドルウェアを追加
 app.add_middleware(SecurityHeadersMiddleware)
 
-# エラーハンドラーを登録
 app.add_exception_handler(RequestValidationError, validation_exception_handler)
 app.add_exception_handler(Exception, api_exception_handler)
 
-# 静的ファイル
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
-# テンプレート
 templates = Jinja2Templates(directory="app/templates")
 
-# API ルーター
 app.include_router(api_router, prefix="/api")
 
 
