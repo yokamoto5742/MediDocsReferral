@@ -25,22 +25,9 @@ class ClaudeAPIClient(BaseAPIClient):
 
     def initialize(self) -> bool:
         try:
-            if not self.aws_region:
-                raise APIError(MESSAGES["CONFIG"]["AWS_CREDENTIALS_MISSING"])
-
-            if not self.anthropic_model:
-                raise APIError(MESSAGES["CONFIG"]["ANTHROPIC_MODEL_MISSING"])
-
-            if self.aws_access_key_id and self.aws_secret_access_key:
-                self.client = AnthropicBedrock(
-                    aws_access_key=self.aws_access_key_id,
-                    aws_secret_key=self.aws_secret_access_key,
-                    aws_region=self.aws_region,
-                )
-            else:
-                self.client = AnthropicBedrock(
-                    aws_region=self.aws_region,
-                )
+            self.client = AnthropicBedrock(
+                aws_region=self.aws_region,
+            )
             return True
 
         except Exception as e:
