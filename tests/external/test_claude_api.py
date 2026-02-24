@@ -77,38 +77,39 @@ class TestClaudeAPIClientInitialize:
         assert client.client is mock_client
 
         mock_anthropic_bedrock.assert_called_once_with(
-            aws_access_key="test_key_id",
-            aws_secret_key="test_secret",
             aws_region="us-east-1",
         )
 
+    @patch("app.external.claude_api.AnthropicBedrock")
     @patch("app.external.claude_api.get_settings")
-    def test_initialize_missing_region(self, mock_get_settings):
-        """initialize - AWS_REGION 未設定"""
+    def test_initialize_missing_region(self, mock_get_settings, mock_anthropic_bedrock):
+        """initialize - AWS_REGION 未設定時、AnthropicBedrockが例外を投げる"""
         mock_get_settings.return_value = create_mock_settings(
             aws_region=None,
         )
+        mock_anthropic_bedrock.side_effect = Exception("region not specified")
 
         client = ClaudeAPIClient()
 
         with pytest.raises(APIError) as exc_info:
             client.initialize()
 
-        assert "AWS認証情報が設定されていません" in str(exc_info.value)
+        assert "Amazon Bedrock Claude API初期化エラー" in str(exc_info.value)
 
+    @patch("app.external.claude_api.AnthropicBedrock")
     @patch("app.external.claude_api.get_settings")
-    def test_initialize_missing_anthropic_model(self, mock_get_settings):
-        """initialize - ANTHROPIC_MODEL 未設定"""
+    def test_initialize_missing_anthropic_model(self, mock_get_settings, mock_anthropic_bedrock):
+        """initialize - ANTHROPIC_MODEL 未設定でも initialize() は成功する（モデル検証は generate_summary 内）"""
         mock_get_settings.return_value = create_mock_settings(
             anthropic_model=None,
         )
+        mock_client = MagicMock()
+        mock_anthropic_bedrock.return_value = mock_client
 
         client = ClaudeAPIClient()
+        result = client.initialize()
 
-        with pytest.raises(APIError) as exc_info:
-            client.initialize()
-
-        assert "ANTHROPIC_MODELが設定されていません" in str(exc_info.value)
+        assert result is True
 
     @patch("app.external.claude_api.AnthropicBedrock")
     @patch("app.external.claude_api.get_settings")
@@ -357,19 +358,21 @@ class TestClaudeAPIClientIntegration:
 
         assert result == ("生成された診療情報提供書", 2000, 1000)
 
+    @patch("app.external.claude_api.AnthropicBedrock")
     @patch("app.external.claude_api.get_settings")
-    def test_generate_summary_initialization_error(self, mock_get_settings):
+    def test_generate_summary_initialization_error(self, mock_get_settings, mock_anthropic_bedrock):
         """generate_summary - 初期化エラー"""
         mock_get_settings.return_value = create_mock_settings(
             aws_region=None,
         )
+        mock_anthropic_bedrock.side_effect = Exception("init error")
 
         client = ClaudeAPIClient()
 
         with pytest.raises(APIError) as exc_info:
             client.generate_summary(medical_text="データ")
 
-        assert "AWS認証情報が設定されていません" in str(exc_info.value)
+        assert "Amazon Bedrock Claude API初期化エラー" in str(exc_info.value)
 
 
 class TestClaudeAPIClientEdgeCases:
