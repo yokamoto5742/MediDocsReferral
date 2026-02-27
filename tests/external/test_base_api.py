@@ -73,7 +73,6 @@ class TestCreateSummaryPrompt:
         prompt = client.create_summary_prompt(
             medical_text="カルテデータ",
             additional_info="追加情報",
-            referral_purpose="精査依頼",
             current_prescription="処方内容",
             department="眼科",
             document_type="他院への紹介",
@@ -82,9 +81,7 @@ class TestCreateSummaryPrompt:
 
         assert "【カルテ情報】" in prompt
         assert "カルテデータ" in prompt
-        assert "【紹介目的】" in prompt
-        assert "精査依頼" in prompt
-        assert "【現在の処方】" in prompt
+        assert "【退院時処方(現在の処方)】" in prompt
         assert "処方内容" in prompt
         assert "【追加情報】追加情報" in prompt
 
@@ -103,10 +100,7 @@ class TestCreateSummaryPrompt:
 
         assert "【カルテ情報】" in prompt
         assert "データ" in prompt
-        # デフォルトプロンプトには【紹介目的】セクションが含まれる
-        # ただし、ユーザー提供の紹介目的データは追加されない
-        assert "【紹介目的】\n精査" not in prompt
-        assert "【現在の処方】\n処方" not in prompt
+        assert "【退院時処方(現在の処方)】\n処方" not in prompt
         # 追加情報は空でも含まれる
         assert "【追加情報】" in prompt
 
@@ -124,14 +118,11 @@ class TestCreateSummaryPrompt:
         prompt = client.create_summary_prompt(
             medical_text="データ",
             additional_info="   ",
-            referral_purpose="  \n  ",
             current_prescription="\t",
         )
 
         # 空白のみは strip() で空文字列になるため、ユーザーデータは追加されない
-        # ただし、デフォルトプロンプトには【紹介目的】セクションが含まれる
-        assert "【紹介目的】\n  \n  " not in prompt
-        assert "【現在の処方】\n\t" not in prompt
+        assert "【退院時処方(現在の処方)】\n\t" not in prompt
 
     @patch("app.external.base_api.get_prompt")
     @patch("app.external.base_api.get_db_session")
@@ -301,7 +292,7 @@ class TestGenerateSummary:
 
         client = MockAPIClient()
         result = client.generate_summary(medical_text="患者情報", additional_info="追加情報",
-                                         referral_purpose="精査依頼", current_prescription="処方",
+                                         current_prescription="処方",
                                          document_type="他院への紹介")
 
         assert result == ("生成されたテキスト", 1000, 500)

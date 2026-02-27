@@ -327,8 +327,8 @@ class TestClaudeAPIClientIntegration:
     """ClaudeAPIClient 統合テスト"""
 
     @patch("app.external.claude_api.AnthropicBedrock")
-    @patch("app.services.prompt_service.get_prompt")
-    @patch("app.core.database.get_db_session")
+    @patch("app.external.base_api.get_prompt")
+    @patch("app.external.base_api.get_db_session")
     @patch("app.external.claude_api.get_settings")
     def test_full_generate_summary_flow(
         self, mock_get_settings, mock_db_session, mock_get_prompt, mock_anthropic_bedrock
@@ -351,9 +351,11 @@ class TestClaudeAPIClientIntegration:
 
         client = ClaudeAPIClient()
         result = client.generate_summary(
-            medical_text="患者情報", additional_info="追加情報",
-            referral_purpose="精査依頼", current_prescription="処方内容",
+            medical_text="患者情報",
+            additional_info="追加情報",
+            current_prescription="処方内容",
             document_type="他院への紹介",
+            model_name="claude-3-5-sonnet-20241022",
         )
 
         assert result == ("生成された診療情報提供書", 2000, 1000)
