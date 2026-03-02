@@ -589,7 +589,7 @@ pyright
 
 ## ライセンス
 
-このプロジェクトは[Apache License 2.0](LICENSE)のもとで公開されています。
+このプロジェクトは[Apache License 2.0](docs/LICENSE)のもとで公開されています。
 
 ## 変更履歴
 
