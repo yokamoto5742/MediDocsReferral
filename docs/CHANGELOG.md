@@ -2,6 +2,15 @@
 
 このプロジェクトの変更履歴は[Keep a Changelog](https://keepachangelog.com/ja/1.1.0/)の仕様に従い、[セマンティック バージョニング](https://semver.org/lang/ja/)を採用しています。
 
+## [1.0.2] - 2026-03-02
+
+### 変更
+
+- **プロジェクト構造ドキュメント**: プロジェクト構造ファイルを更新し、ディレクトリ構成をより正確に反映
+- **README の構成**: Cloudflare 関連設定と CORS 設定の説明を削除し、README をシンプルに
+
+---
+
 ## [1.0.1] - 2026-02-24
 
 ### 追加
@@ -63,5 +72,6 @@
 
 ## リンク
 
+[1.0.2]: https://github.com/yourusername/MediDocsReferral/releases/tag/v1.0.2
 [1.0.1]: https://github.com/yourusername/MediDocsReferral/releases/tag/v1.0.1
 [1.0.0]: https://github.com/yourusername/MediDocsReferral/releases/tag/v1.0.0
