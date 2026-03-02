@@ -54,18 +54,22 @@ git clone <repository-url>
 cd MediDocsReferral
 ```
 
-### 2. 仮想環境の作成と有効化
+### 2\. 仮想環境の作成と有効化
+
+ `uv` を使用して依存関係を管理します。
+
 ```bash
-python -m venv .venv
+uv venv
 # Windows
 .venv\Scripts\activate
-# macOS/Linux
-source .venv/bin/activate
 ```
 
-### 3. Pythonの依存関係をインストール
+### 3\. Pythonの依存関係をインストール
+
+`pyproject.toml` に定義された依存関係をインストールします。
+
 ```bash
-pip install -r requirements.txt
+uv sync
 ```
 
 ### 4. PostgreSQLデータベースのセットアップ
