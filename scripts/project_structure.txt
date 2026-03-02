@@ -1,7 +1,7 @@
 ============================================================
 プロジェクト構造: MediDocsReferral
 パス: C:\Users\yokam\PycharmProjects\MediDocsReferral
-生成日時: 2026-02-23 14:53:22
+生成日時: 2026-03-02 16:33:40
 ============================================================
 
 └── MediDocsReferral
@@ -25,8 +25,6 @@
     │   │   ├── api_factory.py
     │   │   ├── base_api.py
     │   │   ├── claude_api.py
-    │   │   ├── cloudflare_claude_api.py
-    │   │   ├── cloudflare_gemini_api.py
     │   │   └── gemini_api.py
     │   ├── models
     │   │   ├── __init__.py
@@ -81,8 +79,7 @@
     │   └── main.py
     ├── docs
     │   ├── CHANGELOG.md
-    │   ├── LICENSE
-    │   └── MediDocsReferral_setup.md
+    │   └── LICENSE
     ├── ecs
     │   ├── iam-policies.json
     │   └── task-definition.json
@@ -103,10 +100,10 @@
     ├── Dockerfile
     ├── pyproject.toml
     ├── .dockerignore
-    ├── .python-version
     ├── CLAUDE.md
     ├── package.json
     ├── pyrightconfig.json
     ├── README.md
     ├── requirements-dev.lock
-    └── requirements.lock
+    ├── requirements.lock
+    └── uv.lock
