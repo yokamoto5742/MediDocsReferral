@@ -2,6 +2,18 @@
 
 このプロジェクトの変更履歴は[Keep a Changelog](https://keepachangelog.com/ja/1.1.0/)の仕様に従い、[セマンティック バージョニング](https://semver.org/lang/ja/)を採用しています。
 
+## [1.0.3] - 2026-03-10
+
+### 追加
+
+- **日次利用制限機能**: ユーザーごとの日次API使用量制限機能を追加（usage_service.py に実装）
+
+### 修正
+
+- **CSRF認証テスト改善**: CSRF認証テストでAPI呼び出しをモック化し、テストの信頼性を向上
+
+---
+
 ## [1.0.2] - 2026-03-02
 
 ### 変更
@@ -72,6 +84,7 @@
 
 ## リンク
 
+[1.0.3]: https://github.com/yourusername/MediDocsReferral/releases/tag/v1.0.3
 [1.0.2]: https://github.com/yourusername/MediDocsReferral/releases/tag/v1.0.2
 [1.0.1]: https://github.com/yourusername/MediDocsReferral/releases/tag/v1.0.1
 [1.0.0]: https://github.com/yourusername/MediDocsReferral/releases/tag/v1.0.0
