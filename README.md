@@ -54,18 +54,22 @@ git clone <repository-url>
 cd MediDocsReferral
 ```
 
-### 2. 仮想環境の作成と有効化
+### 2\. 仮想環境の作成と有効化
+
+ `uv` を使用して依存関係を管理します。
+
 ```bash
-python -m venv .venv
+uv venv
 # Windows
 .venv\Scripts\activate
-# macOS/Linux
-source .venv/bin/activate
 ```
 
-### 3. Pythonの依存関係をインストール
+### 3\. Pythonの依存関係をインストール
+
+`pyproject.toml` に定義された依存関係をインストールします。
+
 ```bash
-pip install -r requirements.txt
+uv sync
 ```
 
 ### 4. PostgreSQLデータベースのセットアップ
@@ -132,14 +136,6 @@ GEMINI_EVALUATION_MODEL=gemini-2.0-flash
 GEMINI_THINKING_LEVEL=HIGH
 ```
 
-### Cloudflare AI Gateway設定
-```env
-# Cloudflare設定が全て揃うとCloudflareを経由したGemini APIを使用
-CLOUDFLARE_ACCOUNT_ID=your_account_id
-CLOUDFLARE_GATEWAY_ID=your_gateway_id
-CLOUDFLARE_AIG_TOKEN=your_aig_token
-```
-
 ### アプリケーション設定
 ```env
 # トークン制限
@@ -158,9 +154,6 @@ CSRF_TOKEN_EXPIRE_MINUTES=60
 
 # CORS設定
 CORS_ORIGINS=["http://localhost:8000","http://127.0.0.1:8000"]
-CORS_ALLOW_CREDENTIALS=true
-CORS_ALLOW_METHODS=["GET","POST","PUT","DELETE","OPTIONS"]
-CORS_ALLOW_HEADERS=["*"]
 
 # AWS Secrets Manager（オプション）
 AWS_SECRET_NAME=medidocs/prod
@@ -238,8 +231,7 @@ app/
 │   ├── api_factory.py     # APIクライアント動的生成関数
 │   ├── base_api.py        # ベースAPIクライアント
 │   ├── claude_api.py      # Claude/Bedrock連携
-│   ├── gemini_api.py      # Gemini/Vertex AI連携
-│   └── cloudflare_gemini_api.py   # Cloudflareを経由したGemini
+│   └── gemini_api.py      # Gemini/Vertex AI連携
 ├── models/                # SQLAlchemy ORM モデル
 │   ├── base.py            # ベースモデル
 │   ├── prompt.py          # プロンプトテンプレート
@@ -347,8 +339,7 @@ result = client.generate_summary(medical_text, additional_info, ...)
 **インスタンス化**:
 
 - `api_factory.create_client(APIProvider)` で適切なクライアントを動的に生成
-- Cloudflare設定が全て揃うと CloudflareGeminiAPIClient/CloudflareClaudeAPIClient を使用
-- それ以外は GeminiAPIClient/ClaudeAPIClient を使用
+-  GeminiAPIClient/ClaudeAPIClient を使用
 
 ### データフロー
 
@@ -388,7 +379,7 @@ python -m pytest tests/services/test_summary_service.py::test_generate_summary -
 
 ### テスト構造
 
-本プロジェクトは367個以上のテストで包括的なテストカバレッジを維持：
+本プロジェクトは300 個以上のテストで包括的なテストカバレッジを維持：
 
 - **API統合テスト**: エンドポイントとリクエスト/レスポンス
 - **ビジネスロジック**: サービスレイヤーのユニットテスト
@@ -454,7 +445,6 @@ pyright
 ### AI/ML統合
 - **AWS Bedrock**: Claude API へのアクセス
 - **Google Vertex AI**: Gemini API への統合
-- **Cloudflare AI Gateway**: API プロキシング
 
 ### フロントエンド
 - **Vite**: 高速フロントエンドビルドツール
@@ -486,8 +476,6 @@ pyright
   - Google Cloud プロジェクト ID と認証情報が正しいか確認
   - `GEMINI_EVALUATION_MODEL`環境変数が設定されているか確認
   - Vertex AIが有効化されているか確認
-- **Cloudflare設定を使用する場合**:
-  - `CLOUDFLARE_ACCOUNT_ID`、`CLOUDFLARE_GATEWAY_ID`、`CLOUDFLARE_AIG_TOKEN`が全て設定されているか確認
 
 ### テスト失敗
 - `.env.test`ファイルが正しく設定されているか確認
@@ -538,9 +526,9 @@ pyright
 
 以下の環境変数で制御可能：
 - `CORS_ORIGINS`: 許可するオリジンのリスト
-- `CORS_ALLOW_CREDENTIALS`: クッキー送信の許可
-- `CORS_ALLOW_METHODS`: 許可するHTTPメソッド
-- `CORS_ALLOW_HEADERS`: 許可するヘッダー
+- `CORS_ALLOW_CREDENTIALS`: クッキー送信の許可(オプション)
+- `CORS_ALLOW_METHODS`: 許可するHTTPメソッド(オプション)
+- `CORS_ALLOW_HEADERS`: 許可するヘッダー(オプション)
 
 ### プロンプトインジェクション対策
 
@@ -589,7 +577,7 @@ pyright
 
 ## ライセンス
 
-このプロジェクトは[Apache License 2.0](LICENSE)のもとで公開されています。
+このプロジェクトは[Apache License 2.0](docs/LICENSE)のもとで公開されています。
 
 ## 変更履歴
 
