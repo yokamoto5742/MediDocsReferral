@@ -8,6 +8,7 @@ from app.external.gemini_api import GeminiAPIClient
 from app.schemas.evaluation import EvaluationResponse
 from app.services.evaluation_prompt_service import get_evaluation_prompt
 from app.services.sse_helpers import sse_event, stream_with_heartbeat
+from app.services.usage_service import check_daily_limit
 from app.utils.audit_logger import log_audit_event
 from app.utils.exceptions import APIError
 from app.utils.input_sanitizer import sanitize_medical_text, validate_medical_input
@@ -72,7 +73,7 @@ def build_evaluation_prompt(
 【カルテ記載】
 {input_text}
 
-【現在の処方】
+【退院時処方(現在の処方)】
 {current_prescription}
 
 【追加情報】
@@ -98,6 +99,11 @@ def execute_evaluation(
         user_ip=user_ip,
         document_type=document_type,
     )
+
+    # 日次利用制限チェック
+    limit_error = check_daily_limit()
+    if limit_error:
+        return _error_response(limit_error)
 
     # サニタイゼーション適用
     input_text = sanitize_medical_text(input_text)
@@ -220,6 +226,12 @@ async def execute_evaluation_stream(
         user_ip=user_ip,
         document_type=document_type,
     )
+
+    # 日次利用制限チェック
+    limit_error = check_daily_limit()
+    if limit_error:
+        yield sse_event("error", {"success": False, "error_message": limit_error})
+        return
 
     # サニタイゼーション適用
     input_text = sanitize_medical_text(input_text)

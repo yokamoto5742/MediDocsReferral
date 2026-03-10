@@ -79,11 +79,6 @@ class Settings(BaseSettings):
     gemini_thinking_level: str = "HIGH"
     gemini_evaluation_model: str | None = None
 
-    # Cloudflare AI Gateway
-    cloudflare_account_id: str | None = None
-    cloudflare_gateway_id: str | None = None
-    cloudflare_aig_token: str | None = None
-
     # Application
     max_input_tokens: int = 200000
     min_input_tokens: int = 100
@@ -91,6 +86,11 @@ class Settings(BaseSettings):
     prompt_management: bool = True
     app_type: str = "default"
     selected_ai_model: str = ModelType.CLAUDE.value
+
+    # 日次利用制限
+    daily_request_limit: int = 100
+    daily_input_token_limit: int = 5000000
+    daily_output_token_limit: int = 100000
 
     # CSRF認証
     csrf_secret_key: str = "default-csrf-secret-key"
