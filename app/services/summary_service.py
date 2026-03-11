@@ -60,6 +60,7 @@ def execute_summary_generation(
     doctor: str,
     document_type: str,
     model: str,
+    referral_purpose: str = "",
     model_explicitly_selected: bool = False,
     user_ip: str | None = None,
 ) -> SummaryResponse:
@@ -139,6 +140,7 @@ def execute_summary_generation(
             document_type=document_type,
             doctor=doctor,
             model_name=model_name,
+            referral_purpose=referral_purpose,
         )
     except Exception as e:
         log_audit_event(
@@ -197,6 +199,7 @@ def _run_sync_generation(
     document_type: str,
     doctor: str,
     model_name: str,
+    referral_purpose: str = "",
 ) -> tuple[str, int, int]:
     """同期ストリーミングジェネレータをスレッドプールで実行"""
     stream = generate_summary_stream_with_provider(
@@ -208,6 +211,7 @@ def _run_sync_generation(
         document_type=document_type,
         doctor=doctor,
         model_name=model_name,
+        referral_purpose=referral_purpose,
     )
     chunks = []
     metadata = {}
@@ -227,6 +231,7 @@ async def execute_summary_generation_stream(
     doctor: str,
     document_type: str,
     model: str,
+    referral_purpose: str = "",
     model_explicitly_selected: bool = False,
     user_ip: str | None = None,
 ) -> AsyncGenerator[str, None]:
@@ -309,7 +314,7 @@ async def execute_summary_generation_stream(
         sync_func=_run_sync_generation,
         sync_func_args=(
             provider, medical_text, additional_info,
-            current_prescription, department, document_type, doctor, model_name
+            current_prescription, department, document_type, doctor, model_name, referral_purpose
         ),
         start_message=MESSAGES["STATUS"]["DOCUMENT_GENERATION_START"],
         running_status="generating",

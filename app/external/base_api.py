@@ -39,6 +39,7 @@ class BaseAPIClient(ABC):
         department: str = "default",
         document_type: str = DEFAULT_DOCUMENT_TYPE,
         doctor: str = "default",
+        referral_purpose: str = "",
     ) -> str:
         try:
             with get_db_session() as db:
@@ -51,6 +52,9 @@ class BaseAPIClient(ABC):
             prompt_template = DEFAULT_SUMMARY_PROMPT
 
         prompt = f"{prompt_template}\n【カルテ情報】\n{medical_text}"
+
+        if referral_purpose.strip():
+            prompt += f"\n【紹介目的】{referral_purpose}"
 
         if current_prescription.strip():
             prompt += f"\n【退院時処方(現在の処方)】\n{current_prescription}"
@@ -84,6 +88,7 @@ class BaseAPIClient(ABC):
         document_type: str = DEFAULT_DOCUMENT_TYPE,
         doctor: str = "default",
         model_name: Optional[str] = None,
+        referral_purpose: str = "",
     ) -> Tuple[str, int, int]:
         try:
             self.initialize()
@@ -101,6 +106,7 @@ class BaseAPIClient(ABC):
                 department,
                 document_type,
                 doctor,
+                referral_purpose,
             )
 
             return self._generate_content(prompt, model_name)
@@ -129,6 +135,7 @@ class BaseAPIClient(ABC):
         document_type: str = DEFAULT_DOCUMENT_TYPE,
         doctor: str = "default",
         model_name: Optional[str] = None,
+        referral_purpose: str = "",
     ) -> Generator[Union[str, dict], None, None]:
         """ストリーミングで要約を生成"""
         try:
@@ -147,6 +154,7 @@ class BaseAPIClient(ABC):
                 department,
                 document_type,
                 doctor,
+                referral_purpose,
             )
 
             yield from self._generate_content_stream(prompt, model_name)
