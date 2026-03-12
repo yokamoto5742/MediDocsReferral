@@ -11,6 +11,8 @@ env:
   ECS_CLUSTER: medidocs-cluster
   ECS_SERVICE: medidocs-referral-service
   CONTAINER_NAME: medidocs-referral
+  
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 permissions:
   id-token: write   # OIDC認証に必要
