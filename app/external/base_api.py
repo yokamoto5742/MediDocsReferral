@@ -57,7 +57,7 @@ class BaseAPIClient(ABC):
             prompt += f"\n【紹介目的】{referral_purpose}"
 
         if current_prescription.strip():
-            prompt += f"\n【退院時処方(現在の処方)】\n{current_prescription}"
+            prompt += f"\n【現在の処方】\n{current_prescription}"
 
         prompt += f"\n【追加情報】{additional_info}"
 

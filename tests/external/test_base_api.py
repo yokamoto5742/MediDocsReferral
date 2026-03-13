@@ -81,7 +81,7 @@ class TestCreateSummaryPrompt:
 
         assert "【カルテ情報】" in prompt
         assert "カルテデータ" in prompt
-        assert "【退院時処方(現在の処方)】" in prompt
+        assert "【現在の処方】" in prompt
         assert "処方内容" in prompt
         assert "【追加情報】追加情報" in prompt
 
@@ -100,7 +100,7 @@ class TestCreateSummaryPrompt:
 
         assert "【カルテ情報】" in prompt
         assert "データ" in prompt
-        assert "【退院時処方(現在の処方)】\n処方" not in prompt
+        assert "【現在の処方】\n処方" not in prompt
         # 追加情報は空でも含まれる
         assert "【追加情報】" in prompt
 
@@ -122,7 +122,7 @@ class TestCreateSummaryPrompt:
         )
 
         # 空白のみは strip() で空文字列になるため、ユーザーデータは追加されない
-        assert "【退院時処方(現在の処方)】\n\t" not in prompt
+        assert "【現在の処方】\n\t" not in prompt
 
     @patch("app.external.base_api.get_prompt")
     @patch("app.external.base_api.get_db_session")
