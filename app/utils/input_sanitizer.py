@@ -89,7 +89,7 @@ def sanitize_prompt_text(text: str) -> str:
     return sanitize_medical_text(text)
 
 
-def validate_medical_input(text: str) -> Tuple[bool, str | None]:
+def validate_medical_input(text: str, max_input_tokens: int | None = None) -> Tuple[bool, str | None]:
     """
     医療テキスト入力の検証
 
@@ -98,6 +98,9 @@ def validate_medical_input(text: str) -> Tuple[bool, str | None]:
     Returns:
         (is_valid, error_message): 有効な場合True、エラーメッセージ
     """
+    if max_input_tokens is not None and len(text) > max_input_tokens:
+        return False, f"入力テキストが上限（{max_input_tokens}文字）を超えています"
+
     is_suspicious, _ = detect_prompt_injection(text)
     if is_suspicious:
         return False, "入力テキストに不正なパターンが検出されました"

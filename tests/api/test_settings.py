@@ -10,7 +10,7 @@ def test_get_departments(client, test_db):
     assert "departments" in data
     assert isinstance(data["departments"], list)
     assert "default" in data["departments"]
-    assert "内科" in data["departments"]
+    assert "眼科" in data["departments"]
 
 
 def test_get_departments_returns_expected_structure(client, test_db):
@@ -84,8 +84,8 @@ def test_get_document_types(client, test_db):
     data = response.json()
     assert "document_types" in data
     assert isinstance(data["document_types"], list)
-    assert "退院時サマリ" in data["document_types"]
-    assert "現病歴" in data["document_types"]
+    assert "他院への紹介" in data["document_types"]
+    assert "紹介元への逆紹介" in data["document_types"]
 
 
 def test_get_document_types_length(client, test_db):
@@ -94,7 +94,7 @@ def test_get_document_types_length(client, test_db):
 
     assert response.status_code == status.HTTP_200_OK
     data = response.json()
-    assert len(data["document_types"]) == 2
+    assert len(data["document_types"]) == 4
 
 
 def test_get_document_types_returns_expected_structure(client, test_db):

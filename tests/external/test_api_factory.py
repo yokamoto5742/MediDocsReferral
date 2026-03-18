@@ -174,8 +174,8 @@ class TestGenerateSummaryWithProvider:
 
         # generate_summary(medical_text, additional_info, current_prescription, department, document_type, doctor, model_name)
         call_args = mock_generate.call_args[0]
-        # DEFAULT_DOCUMENT_TYPE が使用される（constants.py: "退院時サマリ"）
-        assert call_args[4] == "退院時サマリ"
+        # DEFAULT_DOCUMENT_TYPE が使用される（constants.py: "他院への紹介"）
+        assert call_args[4] == "他院への紹介"
 
 
 class TestEdgeCases:

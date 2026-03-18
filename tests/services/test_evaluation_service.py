@@ -29,7 +29,7 @@ class TestBuildEvaluationPrompt:
         assert prompt_template in result
         assert "【カルテ記載】" in result
         assert input_text in result
-        assert "【退院時処方(現在の処方)】" in result
+        assert "【現在の処方】" in result
         assert current_prescription in result
         assert "【追加情報】" in result
         assert additional_info in result
@@ -53,7 +53,7 @@ class TestBuildEvaluationPrompt:
         result = build_evaluation_prompt("テンプレート", "カルテ", "処方", "追加", "出力")
 
         カルテ_pos = result.index("【カルテ記載】")
-        処方_pos = result.index("【退院時処方(現在の処方)】")
+        処方_pos = result.index("【現在の処方】")
         追加_pos = result.index("【追加情報】")
         出力_pos = result.index("【生成された出力】")
 
