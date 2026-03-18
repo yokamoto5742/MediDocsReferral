@@ -51,7 +51,7 @@ python -m pytest tests/services/test_summary_service.py::test_generate_summary -
 # カバレッジ付きテスト
 python -m pytest tests/ -v --tb=short --cov=app --cov-report=html
 
-# 型チェック（scripts/は除外）
+# 型チェック
 pyright
 ```
 

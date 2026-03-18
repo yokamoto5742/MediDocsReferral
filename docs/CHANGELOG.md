@@ -2,6 +2,26 @@
 
 このプロジェクトの変更履歴は[Keep a Changelog](https://keepachangelog.com/ja/1.1.0/)の仕様に従い、[セマンティック バージョニング](https://semver.org/lang/ja/)を採用しています。
 
+## [1.0.4] - 2026-03-18
+
+### 追加
+
+- **SSEヘルパーキュー処理**: Server-Sent Events でリアルタイム処理を実現するためのキュー管理機能を追加
+- **AI APIテストの強化**: ClaudeAPIClient と GeminiAPIClient のネットワークエラーハンドリングテストを追加
+- **セキュリティテストの拡充**: セキュリティヘッダーミドルウェア、CSRF トークン検証、プロンプトインジェクション検出のテストを追加
+- **サービスフローテストの拡張**: 評価サービスと要約サービスの統合フロー、使用統計サービスのテストを追加
+
+### 変更
+
+- **入力サニタイゼーション強化**: `input_sanitizer.py` に `max_input_tokens` パラメータを引数として追加し、より詳細なトークン数制御を実現
+- **プロンプトインジェクション検出ロジック**: 医療テキスト入力検証を更新し、さらに多くの悪意あるパターンを検出
+- **医療テキスト入力検証**: 医療カルテテキストの検証ロジックを強化
+- **設定値の調整**: `max_input_tokens` と `max_token_threshold` の値を更新し、より適切なトークン制限を設定
+- **テストデータの統一**: 診療科、文書タイプ、医師のテストデータを整理・統一
+- **ビルド設定の最適化**: Dockerfile と`.dockerignore` を更新
+
+---
+
 ## [1.0.3] - 2026-03-10
 
 ### 追加
@@ -84,6 +104,7 @@
 
 ## リンク
 
+[1.0.4]: https://github.com/yourusername/MediDocsReferral/releases/tag/v1.0.4
 [1.0.3]: https://github.com/yourusername/MediDocsReferral/releases/tag/v1.0.3
 [1.0.2]: https://github.com/yourusername/MediDocsReferral/releases/tag/v1.0.2
 [1.0.1]: https://github.com/yourusername/MediDocsReferral/releases/tag/v1.0.1
