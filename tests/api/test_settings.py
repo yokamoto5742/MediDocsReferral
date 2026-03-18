@@ -10,7 +10,7 @@ def test_get_departments(client, test_db):
     assert "departments" in data
     assert isinstance(data["departments"], list)
     assert "default" in data["departments"]
-    assert "眼科" in data["departments"]
+    assert "内科" in data["departments"]
 
 
 def test_get_departments_returns_expected_structure(client, test_db):
@@ -37,14 +37,13 @@ def test_get_doctors_default_department(client, test_db):
 
 
 def test_get_doctors_specific_department(client, test_db):
-    """医師一覧取得 - 眼科"""
-    response = client.get("/api/settings/doctors/眼科")
+    """医師一覧取得 - 内科（マッピングに存在しない場合デフォルト）"""
+    response = client.get("/api/settings/doctors/内科")
 
     assert response.status_code == status.HTTP_200_OK
     data = response.json()
     assert "doctors" in data
     assert "default" in data["doctors"]
-    assert "橋本義弘" in data["doctors"]
 
 
 def test_get_doctors_unknown_department(client, test_db):
@@ -85,10 +84,8 @@ def test_get_document_types(client, test_db):
     data = response.json()
     assert "document_types" in data
     assert isinstance(data["document_types"], list)
-    assert "他院への紹介" in data["document_types"]
-    assert "紹介元への逆紹介" in data["document_types"]
-    assert "返書" in data["document_types"]
-    assert "最終返書" in data["document_types"]
+    assert "退院時サマリ" in data["document_types"]
+    assert "現病歴" in data["document_types"]
 
 
 def test_get_document_types_length(client, test_db):
@@ -97,7 +94,7 @@ def test_get_document_types_length(client, test_db):
 
     assert response.status_code == status.HTTP_200_OK
     data = response.json()
-    assert len(data["document_types"]) == 4
+    assert len(data["document_types"]) == 2
 
 
 def test_get_document_types_returns_expected_structure(client, test_db):
@@ -113,7 +110,7 @@ def test_get_document_types_returns_expected_structure(client, test_db):
 def test_multiple_doctors_requests(client, test_db):
     """医師一覧取得 - 複数リクエスト"""
     # 複数の診療科について順次問い合わせ
-    departments = ["default", "眼科"]
+    departments = ["default", "内科"]
 
     for dept in departments:
         response = client.get(f"/api/settings/doctors/{dept}")
@@ -138,14 +135,15 @@ def test_all_endpoints_accessible(client, test_db):
 
 
 def test_get_doctors_url_encoding(client, test_db):
-    """医師一覧取得 - URLエンコーディング"""
-    # 日本語をURLエンコードした場合
-    response = client.get("/api/settings/doctors/%E7%9C%BC%E7%A7%91")
+    """医師一覧取得 - URLエンコーディング（内科）"""
+    # 日本語をURLエンコードした場合（内科 = %E5%86%85%E7%A7%91）
+    response = client.get("/api/settings/doctors/%E5%86%85%E7%A7%91")
 
     assert response.status_code == status.HTTP_200_OK
     data = response.json()
     assert "doctors" in data
-    assert "橋本義弘" in data["doctors"]
+    # DEPARTMENT_DOCTORS_MAPPINGに内科がないのでデフォルト値が返る
+    assert "default" in data["doctors"]
 
 
 def test_settings_endpoints_no_authentication(client, test_db):
