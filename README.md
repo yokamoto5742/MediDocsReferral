@@ -86,7 +86,7 @@ createdb medidocs
 
 環境変数は以下の優先順位で読み込まれます：
 1. OS環境変数（既存の値は上書きされない）
-2. AWS Secrets Manager（`AWS_SECRET_NAME`で指定、デフォルト: `medidocs/prod`）
+2. AWS Secrets Manager
 3. `.env`ファイル
 
 ## 環境変数の設定
@@ -115,9 +115,7 @@ DATABASE_URL=postgresql://user:password@host:port/database
 
 ### Claude API設定(AWS Bedrock)
 ```env
-# ローカル開発環境（アクセスキーを使用する場合）
-AWS_ACCESS_KEY_ID=your_aws_access_key
-AWS_SECRET_ACCESS_KEY=your_aws_secret_key
+# ローカル開発環境
 AWS_REGION=ap-northeast-1
 ANTHROPIC_MODEL=anthropic.claude-3-5-sonnet-20241022-v2:0
 
@@ -161,8 +159,6 @@ CSRF_TOKEN_EXPIRE_MINUTES=60
 # CORS設定
 CORS_ORIGINS=["http://localhost:8000","http://127.0.0.1:8000"]
 
-# AWS Secrets Manager（オプション）
-AWS_SECRET_NAME=medidocs/prod
 ```
 
 ## 使用方法
@@ -532,7 +528,7 @@ pyright
 - インポート順序: 標準ライブラリ → サードパーティ → ローカルモジュール
 - 各グループ内でアルファベット順にソート（`import`が先、`from`は後）
 - 関数サイズは**50行以下**を目標
-- コメントは複雑なロジックのみ日本語で記述（文末に句点不要）
+- コメントは複雑なロジックのみ日本語で記述
 
 ### コミットメッセージ
 - 従来のコミット形式を使用：`✨ feat`, `🐛 fix`, `📝 docs`, `♻️ refactor`, `✅ test`
