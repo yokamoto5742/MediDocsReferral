@@ -97,7 +97,6 @@ MESSAGES: dict[str, dict[str, str]] = {
         "DAILY_INPUT_TOKEN_LIMIT_EXCEEDED": "本日の入力トークン制限（{limit}トークン）を超過しました。明日再度お試しください",
         "DAILY_OUTPUT_TOKEN_LIMIT_EXCEEDED": "本日の出力トークン制限（{limit}トークン）を超過しました。明日再度お試しください",
         "DAILY_REQUEST_LIMIT_EXCEEDED": "本日のリクエスト回数制限（{limit}回）を超過しました。明日再度お試しください",
-        "EVALUATION_MODEL_MISSING": "GEMINI_EVALUATION_MODEL環境変数が設定されていません",
         "GEMINI_MODEL_NOT_SET": "Geminiモデルが設定されていません",
         "GOOGLE_LOCATION_MISSING": "GOOGLE_LOCATION環境変数が設定されていません。",
         "GOOGLE_PROJECT_ID_MISSING": "GOOGLE_PROJECT_ID環境変数が設定されていません。",

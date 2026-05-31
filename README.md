@@ -131,7 +131,6 @@ GOOGLE_CREDENTIALS_JSON={"type":"service_account","project_id":"your-project",..
 GOOGLE_PROJECT_ID=your-gcp-project-id
 GOOGLE_LOCATION=global
 GEMINI_MODEL=gemini-2.0-flash
-GEMINI_EVALUATION_MODEL=gemini-2.0-flash
 GEMINI_THINKING_LEVEL=HIGH
 ```
 
@@ -151,6 +150,9 @@ DAILY_OUTPUT_TOKEN_LIMIT=100000
 PROMPT_MANAGEMENT=true
 APP_TYPE=default
 SELECTED_AI_MODEL=Claude
+
+# 出力評価に使用するモデル（Claude の場合は ANTHROPIC_MODEL、Gemini の場合は GEMINI_MODEL を使用）
+EVALUATION_MODEL=Gemini
 
 # CSRF認証
 CSRF_SECRET_KEY=your_secret_key
@@ -486,8 +488,11 @@ pyright
   - `ANTHROPIC_MODEL`環境変数の設定確認
 - **Gemini API エラー**:
   - Google Cloud プロジェクト ID と認証情報が正しいか確認
-  - `GEMINI_EVALUATION_MODEL`環境変数が設定されているか確認
+  - `GEMINI_MODEL`環境変数が設定されているか確認
   - Vertex AIが有効化されているか確認
+- **出力評価エラー**:
+  - `EVALUATION_MODEL`（`Claude` または `Gemini`）の設定確認
+  - 選択したモデルに対応する `ANTHROPIC_MODEL` / `GEMINI_MODEL` が設定されているか確認
 
 ### テスト失敗
 - `.env.test`ファイルが正しく設定されているか確認

@@ -42,7 +42,9 @@ class Settings(BaseSettings):
     google_project_id: str | None = None
     google_location: str = "global"
     gemini_thinking_level: str = "HIGH"
-    gemini_evaluation_model: str | None = None
+
+    # 出力評価
+    evaluation_model: str = ModelType.GEMINI.value
 
     # Application
     max_input_tokens: int = 300000

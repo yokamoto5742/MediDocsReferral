@@ -1,4 +1,5 @@
 """統合テスト: 評価フロー（API層→Service層→DB）"""
+
 from unittest.mock import MagicMock, patch
 
 from fastapi import status
@@ -14,7 +15,7 @@ VALID_OUTPUT_SUMMARY = (
 
 
 def _make_mock_gemini_cls(evaluation_text: str = "評価結果: 適切な要約です。"):
-    """GeminiAPIClientクラスのモックを生成"""
+    """評価用APIクライアントのモックを生成"""
     mock_instance = MagicMock()
     mock_instance.initialize.return_value = None
     mock_instance._generate_content.return_value = (evaluation_text, 500, 200)
@@ -27,15 +28,17 @@ class TestSyncEvaluation:
         self, integration_client, db_session, csrf_headers
     ):
         """正常系: 評価プロンプトあり状態で評価が成功する"""
-        db_session.add(EvaluationPrompt(
-            document_type="退院時サマリ",
-            content="以下の退院時サマリを評価してください。",
-            is_active=True,
-        ))
+        db_session.add(
+            EvaluationPrompt(
+                document_type="退院時サマリ",
+                content="以下の退院時サマリを評価してください。",
+                is_active=True,
+            )
+        )
         db_session.commit()
 
         with patch(
-            "app.services.evaluation_service.GeminiAPIClient",
+            "app.services.evaluation_service.create_client",
             _make_mock_gemini_cls(),
         ):
             response = integration_client.post(
@@ -114,7 +117,7 @@ class TestSyncEvaluation:
         )
 
         with patch(
-            "app.services.evaluation_service.GeminiAPIClient",
+            "app.services.evaluation_service.create_client",
             _make_mock_gemini_cls("詳細な評価結果です。"),
         ):
             response = integration_client.post(
@@ -138,15 +141,17 @@ class TestStreamingEvaluation:
         self, integration_client, db_session, csrf_headers
     ):
         """ストリーミング評価でcompleteイベントが返る"""
-        db_session.add(EvaluationPrompt(
-            document_type="退院時サマリ",
-            content="以下の退院時サマリを評価してください。",
-            is_active=True,
-        ))
+        db_session.add(
+            EvaluationPrompt(
+                document_type="退院時サマリ",
+                content="以下の退院時サマリを評価してください。",
+                is_active=True,
+            )
+        )
         db_session.commit()
 
         with patch(
-            "app.services.evaluation_service.GeminiAPIClient",
+            "app.services.evaluation_service.create_client",
             _make_mock_gemini_cls("評価完了: 高品質なサマリです。"),
         ):
             response = integration_client.post(

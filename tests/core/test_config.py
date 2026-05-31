@@ -4,6 +4,7 @@ from unittest.mock import patch
 import pytest
 
 from app.core.config import Settings, get_settings
+from app.core.constants import ModelType
 
 
 @pytest.fixture(autouse=True)
@@ -54,6 +55,20 @@ class TestSettingsInitialization:
         assert settings.anthropic_model == "claude-3-opus-20240229"
         assert settings.claude_model == "claude-3-5-sonnet-20241022"
         assert settings.gemini_model == "gemini-1.5-pro-002"
+
+    @patch.dict(os.environ, {}, clear=True)
+    def test_evaluation_model_default(self):
+        """設定 - 評価モデルのデフォルトはGemini"""
+        settings = Settings()
+
+        assert settings.evaluation_model == ModelType.GEMINI.value
+
+    @patch.dict(os.environ, {"EVALUATION_MODEL": "Claude"}, clear=True)
+    def test_evaluation_model_from_env(self):
+        """設定 - 評価モデルを環境変数から設定"""
+        settings = Settings()
+
+        assert settings.evaluation_model == ModelType.CLAUDE.value
 
     @patch.dict(
         os.environ,
@@ -209,7 +224,9 @@ class TestSettingsEdgeCases:
         settings = Settings()
 
         assert settings.aws_access_key_id == "AKIAIOSFODNN7EXAMPLE"
-        assert settings.aws_secret_access_key == "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+        assert (
+            settings.aws_secret_access_key == "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+        )
         assert settings.aws_region == "ap-northeast-1"
 
     @patch.dict(
@@ -323,4 +340,7 @@ class TestSettingsValidation:
                 Settings()
 
             # Pydantic ValidationError が発生
-            assert "validation error" in str(exc_info.value).lower() or "bool" in str(exc_info.value).lower()
+            assert (
+                "validation error" in str(exc_info.value).lower()
+                or "bool" in str(exc_info.value).lower()
+            )

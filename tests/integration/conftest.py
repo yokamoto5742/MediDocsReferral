@@ -23,7 +23,7 @@ def make_test_settings(**overrides) -> Settings:
         csrf_secret_key=INTEGRATION_CSRF_SECRET,
         claude_model="claude-test-model",
         gemini_model="gemini-test-model",
-        gemini_evaluation_model="gemini-eval-test-model",
+        anthropic_model="anthropic-test-model",
         min_input_tokens=overrides.get("min_input_tokens", 10),
         max_input_tokens=overrides.get("max_input_tokens", 300_000),
         max_token_threshold=overrides.get("max_token_threshold", 150_000),
@@ -90,7 +90,9 @@ def integration_client(integration_db, monkeypatch):
         patch("app.services.evaluation_service.settings", test_settings),
         patch("app.services.usage_service.get_db_session", override_get_db_session),
         patch("app.services.model_selector.get_db_session", override_get_db_session),
-        patch("app.services.evaluation_service.get_db_session", override_get_db_session),
+        patch(
+            "app.services.evaluation_service.get_db_session", override_get_db_session
+        ),
         patch("app.services.usage_service.get_settings", return_value=test_settings),
     ):
         yield TestClient(app)

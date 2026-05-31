@@ -58,7 +58,7 @@ class TestSyncAPIErrors:
         mock_instance._generate_content.side_effect = Exception("Gemini API障害")
         mock_cls = MagicMock(return_value=mock_instance)
 
-        with patch("app.services.evaluation_service.GeminiAPIClient", mock_cls):
+        with patch("app.services.evaluation_service.create_client", mock_cls):
             response = integration_client.post(
                 "/api/evaluation/evaluate",
                 json={
@@ -137,7 +137,7 @@ class TestStreamingErrors:
         mock_instance._generate_content.side_effect = Exception("評価APIエラー")
         mock_cls = MagicMock(return_value=mock_instance)
 
-        with patch("app.services.evaluation_service.GeminiAPIClient", mock_cls):
+        with patch("app.services.evaluation_service.create_client", mock_cls):
             response = integration_client.post(
                 "/api/evaluation/evaluate-stream",
                 json={
