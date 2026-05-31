@@ -2,6 +2,21 @@
 
 このプロジェクトの変更履歴は[Keep a Changelog](https://keepachangelog.com/ja/1.1.0/)の仕様に従い、[セマンティック バージョニング](https://semver.org/lang/ja/)を採用しています。
 
+## [1.0.5] - 2026-05-31
+
+### 追加
+
+- **コード品質ツール**: ruff をプロジェクトに統合し、コードのリンティングとフォーマットを自動化
+
+### 変更
+
+- **評価モデル設定の一般化**: 評価機能を ClaudeAPIClient と GeminiAPIClient の両方に対応し、プロバイダーに依存しない設計に改善
+- **Geminiモデル名の統一**: Gemini モデル定数を一般的な "Gemini" 名に変更し、設定の柔軟性を向上
+- **ファイル名の標準化**: Gemini 関連ファイルの命名を統一し、API プロジェクトIDと質問設定を更新
+- **パッケージ管理の最適化**: 依存関係管理を pip から uv に移行し、ビルドパフォーマンスを向上
+
+---
+
 ## [1.0.4] - 2026-03-18
 
 ### 追加
@@ -104,6 +119,7 @@
 
 ## リンク
 
+[1.0.5]: https://github.com/yourusername/MediDocsReferral/releases/tag/v1.0.5
 [1.0.4]: https://github.com/yourusername/MediDocsReferral/releases/tag/v1.0.4
 [1.0.3]: https://github.com/yourusername/MediDocsReferral/releases/tag/v1.0.3
 [1.0.2]: https://github.com/yourusername/MediDocsReferral/releases/tag/v1.0.2

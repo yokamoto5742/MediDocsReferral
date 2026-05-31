@@ -134,6 +134,12 @@ GEMINI_MODEL=gemini-2.0-flash
 GEMINI_THINKING_LEVEL=HIGH
 ```
 
+### 出力評価モデル設定
+```env
+# 評価に使用するモデル（Claude または Gemini）
+EVALUATION_MODEL=Gemini
+```
+
 ### アプリケーション設定
 ```env
 # トークン制限
@@ -150,9 +156,6 @@ DAILY_OUTPUT_TOKEN_LIMIT=100000
 PROMPT_MANAGEMENT=true
 APP_TYPE=default
 SELECTED_AI_MODEL=Claude
-
-# 出力評価に使用するモデル（Claude の場合は ANTHROPIC_MODEL、Gemini の場合は GEMINI_MODEL を使用）
-EVALUATION_MODEL=Gemini
 
 # CSRF認証
 CSRF_SECRET_KEY=your_secret_key
@@ -492,7 +495,7 @@ pyright
   - Vertex AIが有効化されているか確認
 - **出力評価エラー**:
   - `EVALUATION_MODEL`（`Claude` または `Gemini`）の設定確認
-  - 選択したモデルに対応する `ANTHROPIC_MODEL` / `GEMINI_MODEL` が設定されているか確認
+  - `Claude` を選択した場合は `ANTHROPIC_MODEL`、`Gemini` を選択した場合は `GEMINI_MODEL` が設定されているか確認
 
 ### テスト失敗
 - `.env.test`ファイルが正しく設定されているか確認
@@ -524,23 +527,6 @@ pyright
 - 
 **「本日の出力トークン制限を超過しました」**
 - `DAILY_OUTPUT_TOKEN_LIMIT`を増加させるか、翌日を待つ必要があります。
-
-## コントリビューション
-
-### コードスタイル
-- **PEP 8** ガイドラインに従う
-- すべての関数に**型ヒント**（パラメータと戻り値）を使用
-- インポート順序: 標準ライブラリ → サードパーティ → ローカルモジュール
-- 各グループ内でアルファベット順にソート（`import`が先、`from`は後）
-- 関数サイズは**50行以下**を目標
-- コメントは複雑なロジックのみ日本語で記述
-
-### コミットメッセージ
-- 従来のコミット形式を使用：`✨ feat`, `🐛 fix`, `📝 docs`, `♻️ refactor`, `✅ test`
-- 変更内容と理由を日本語で記述
-- 変更範囲は最小限に
-
-詳細は [CLAUDE.md](CLAUDE.md) を参照してください。
 
 ## セキュリティ機能
 
