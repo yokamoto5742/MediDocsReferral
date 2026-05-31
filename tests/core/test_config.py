@@ -43,7 +43,6 @@ class TestSettingsInitialization:
         os.environ,
         {
             "ANTHROPIC_MODEL": "claude-3-opus-20240229",
-            "CLAUDE_MODEL": "claude-3-5-sonnet-20241022",
             "GEMINI_MODEL": "gemini-1.5-pro-002",
         },
         clear=True,
@@ -53,7 +52,6 @@ class TestSettingsInitialization:
         settings = Settings()
 
         assert settings.anthropic_model == "claude-3-opus-20240229"
-        assert settings.claude_model == "claude-3-5-sonnet-20241022"
         assert settings.gemini_model == "gemini-1.5-pro-002"
 
     @patch.dict(os.environ, {}, clear=True)

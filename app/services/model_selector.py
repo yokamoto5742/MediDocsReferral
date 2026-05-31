@@ -43,7 +43,7 @@ def determine_model(
 def get_provider_and_model(selected_model: str) -> tuple[str, str]:
     """モデル名からプロバイダーとモデル名を取得"""
     if selected_model == ModelType.CLAUDE:
-        model = settings.claude_model or settings.anthropic_model
+        model = settings.anthropic_model
         if not model:
             raise ValueError(MESSAGES["CONFIG"]["CLAUDE_MODEL_NOT_SET"])
         return APIProvider.CLAUDE.value, model
