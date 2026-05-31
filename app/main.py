@@ -30,7 +30,7 @@ settings = get_settings()
 app = FastAPI(
     title="MediDocsLM API",
     version="1.0.0",
-    docs_url=None, # 開発段階では "/api/docs"
+    docs_url=None,  # 開発段階では "/api/docs"
     redoc_url=None,
 )
 
@@ -61,7 +61,7 @@ def get_available_models() -> list[str]:
     if settings.anthropic_model:
         models.append(ModelType.CLAUDE.value)
     if settings.gemini_model:
-        models.append(ModelType.GEMINI_PRO.value)
+        models.append(ModelType.GEMINI.value)
     return models if models else [ModelType.CLAUDE.value]
 
 

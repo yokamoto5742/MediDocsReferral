@@ -4,7 +4,10 @@ from fastapi.responses import StreamingResponse
 from app.core.config import get_settings
 from app.core.constants import ModelType
 from app.schemas.summary import SummaryRequest, SummaryResponse
-from app.services.summary_service import execute_summary_generation, execute_summary_generation_stream
+from app.services.summary_service import (
+    execute_summary_generation,
+    execute_summary_generation_stream,
+)
 
 # 公開ルーター(読み取り専用、CSRF保護なし)
 public_router = APIRouter(prefix="/summary", tags=["summary"])
@@ -67,7 +70,7 @@ def get_available_models():
     if settings.anthropic_model:
         models.append(ModelType.CLAUDE.value)
     if settings.gemini_model:
-        models.append(ModelType.GEMINI_PRO.value)
+        models.append(ModelType.GEMINI.value)
     return {
         "available_models": models,
         "default_model": models[0] if models else None,
