@@ -33,13 +33,15 @@
 
 ## 優先度2: 未使用の設定フィールド（要判断）
 
-`Settings`（`app/core/config.py`）の以下フィールドはコード内で一度も参照されていない。`model_config` は `extra="ignore"` のため `.env` に値が残っていても無害だが、削除前に意図を確認する。
+`Settings`（`app/core/config.py`）の以下フィールドはコード内で一度も参照されていない。`model_config` は `extra="ignore"` のため `.env` に値が残っていても無害だが、削除前に意図を確認する。Settingsは昔使っていたが、今は使っていないので削除してOK 。
 
 | # | 対象 | 場所 | 備考 |
 |---|------|------|------|
 | 4 | `app_type: str = "default"` | `app/core/config.py:53` | 設定値自体は未使用。`usage` モデルの `app_type` カラムは別物で、`usage_service.py:73` が `"dischargesummary"` をハードコードしている。**カラム/スキーマは残す**こと |
+
 | 5 | `selected_ai_model: str` | `app/core/config.py:54` | どこからも参照なし。モデル選択は各プロンプトの `selected_model` と `anthropic_model`/`gemini_model` 経由で行われている |
-| 6 | `db_pool_recycle: int = 1800` | `app/core/config.py:29` | `database.py:16` がエンジンに `pool_recycle=3600` をハードコードしているため未使用。**「フィールドを削除」するか「エンジンに配線する」かはユーザー判断**（本来は配線するつもりだった可能性が高い） |
+
+| 6 | `db_pool_recycle: int = 1800` | `app/core/config.py:29` | `database.py:16` がエンジンに `pool_recycle=3600` をハードコードしているため未使用。削除せずエンジンに配線する。
 
 > 注: `db_max_overflow`（line 27）は `database.py:14` で使用されているため**削除しない**。
 
@@ -50,19 +52,6 @@
 | # | 対象 | 場所 | 根拠・手順 |
 |---|------|------|-----------|
 | 7 | 関数 `sanitize_prompt_text` | `app/utils/input_sanitizer.py:84-89` | `sanitize_medical_text` の薄いラッパー。本番コードからの呼び出しは無く、参照は自身のテストのみ。削除時は `tests/test_utils/test_input_sanitizer.py` の import（4行目）と `test_sanitize_prompt_text`（60行目）も併せて削除する |
-
----
-
-## 優先度4: 開発専用スクリプト（低リスク・本番非依存）
-
-`scripts/` は pyright 対象外の開発ツール。本番依存はないが、未使用関数を整理対象として記録する。
-
-| # | 対象 | 場所 | 根拠 |
-|---|------|------|------|
-| 8 | 関数 `quick_structure` | `scripts/project_structure.py:179` | スクリプト内外から呼び出しなし |
-| 9 | 関数 `save_structure` | `scripts/project_structure.py:188` | スクリプト内外から呼び出しなし |
-
-> `scripts/` 配下の一部スクリプト（`gemini_sample_script.py` 等）はどこからも参照されない単独実行ツールだが、開発用途のため本計画では削除対象外とする。
 
 ---
 
@@ -84,6 +73,5 @@ vulture が候補として挙げたが、実際にはフレームワーク経由
 1. 優先度1（#1〜#3）を一括削除 → `pyright` と `python -m pytest tests/ -v --tb=short` で検証
 2. 優先度3（#7）を削除（テストも併せて削除）→ pytest で検証
 3. 優先度2（#4〜#6）はユーザーに意図を確認後に削除（特に #6 は「削除 / 配線」の判断）
-4. 優先度4（#8〜#9）は任意
 
 各ステップ後に全テストがパスすることを確認する。
