@@ -46,6 +46,14 @@ dev = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"
+asyncio_mode = "auto"
+filterwarnings = [
+    "ignore::PendingDeprecationWarning:starlette.formparsers",
+    "ignore::starlette.exceptions.StarletteDeprecationWarning:fastapi.testclient", # httpx2のインストール
+    "ignore::DeprecationWarning:_pytest.python",
+]
 
 [tool.pyright]
 typeCheckingMode = "standard"
