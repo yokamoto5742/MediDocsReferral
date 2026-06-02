@@ -2,7 +2,7 @@
 
 このプロジェクトの変更履歴は[Keep a Changelog](https://keepachangelog.com/ja/1.1.0/)の仕様に従い、[セマンティック バージョニング](https://semver.org/lang/ja/)を採用しています。
 
-## [1.0.5] - 2026-05-31
+## [1.1.0] - 2026-05-31
 
 ### 追加
 
