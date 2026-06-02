@@ -259,32 +259,6 @@ class TestSettingsEdgeCases:
     @patch.dict(
         os.environ,
         {
-            "PROMPT_MANAGEMENT": "false",
-            "APP_TYPE": "summary",
-            "SELECTED_AI_MODEL": "Gemini",
-        },
-        clear=True,
-    )
-    def test_settings_application_config(self):
-        """設定 - アプリケーション設定"""
-        settings = Settings()
-
-        assert settings.prompt_management is False
-        assert settings.app_type == "summary"
-        assert settings.selected_ai_model == "Gemini"
-
-    @patch.dict(os.environ, {}, clear=True)
-    def test_settings_application_config_defaults(self):
-        """設定 - アプリケーション設定デフォルト値"""
-        settings = Settings()
-
-        assert settings.prompt_management is True
-        assert settings.app_type == "default"
-        assert settings.selected_ai_model == "Claude"
-
-    @patch.dict(
-        os.environ,
-        {
             "UNKNOWN_ENV_VAR": "unknown_value",
         },
         clear=True,

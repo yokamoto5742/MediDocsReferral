@@ -14,11 +14,6 @@ class PromptCreate(PromptBase):
     pass
 
 
-class PromptUpdate(BaseModel):
-    content: str | None = None
-    selected_model: str | None = None
-
-
 class PromptResponse(PromptBase):
     id: int
     is_default: bool
@@ -30,6 +25,7 @@ class PromptResponse(PromptBase):
 
 class PromptListItem(BaseModel):
     """contentを除外した一覧用"""
+
     id: int
     department: str
     document_type: str

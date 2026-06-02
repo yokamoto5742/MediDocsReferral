@@ -50,8 +50,6 @@ class Settings(BaseSettings):
     min_input_tokens: int = 100
     max_token_threshold: int = 150000
     prompt_management: bool = True
-    app_type: str = "default"
-    selected_ai_model: str = ModelType.CLAUDE.value
 
     # 日次利用制限
     daily_request_limit: int = 100
