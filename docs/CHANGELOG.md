@@ -2,6 +2,22 @@
 
 このプロジェクトの変更履歴は[Keep a Changelog](https://keepachangelog.com/ja/1.1.0/)の仕様に従い、[セマンティック バージョニング](https://semver.org/lang/ja/)を採用しています。
 
+## [1.1.1] - 2026-06-14
+
+### 変更
+
+- **エラーレスポンスの標準化**: クライアント向けのAPIエラーレスポンスメッセージを定型フォーマットに統一し、セキュリティを向上（SSE ヘルパー、評価サービス、要約サービス、エラーハンドラー）
+- **設定値のデフォルト削除**: アプリケーション設定から不要なデフォルト値を削除し、設定の明示性を向上
+- **pytest設定の統合**: pytest 設定ファイルを pyproject.toml に統合し、プロジェクト構成をシンプル化
+
+### 修正
+
+- **評価API呼び出しの例外ハンドリング**: 評価API呼び出し時の例外処理を改善し、エラー時に例外詳細を返さないように修正
+- **文書生成API呼び出しの例外ハンドリング**: 文書生成API呼び出し時の例外処理を改善し、エラー時に例外詳細を返さないように修正
+- **CSRF_SECRET_KEY未設定時のエラーハンドリング**: 設定キー未設定時の例外処理を追加
+
+---
+
 ## [1.1.0] - 2026-05-31
 
 ### 追加
@@ -119,6 +135,8 @@
 
 ## リンク
 
+[1.1.1]: https://github.com/yourusername/MediDocsReferral/releases/tag/v1.1.1
+[1.1.0]: https://github.com/yourusername/MediDocsReferral/releases/tag/v1.1.0
 [1.0.5]: https://github.com/yourusername/MediDocsReferral/releases/tag/v1.0.5
 [1.0.4]: https://github.com/yourusername/MediDocsReferral/releases/tag/v1.0.4
 [1.0.3]: https://github.com/yourusername/MediDocsReferral/releases/tag/v1.0.3
