@@ -1,9 +1,13 @@
+import logging
 import time
 from typing import AsyncGenerator
 
 from app.core.config import get_settings
 from app.core.constants import MESSAGES, get_message
-from app.external.api_factory import generate_summary_with_provider, generate_summary_stream_with_provider
+from app.external.api_factory import (
+    generate_summary_with_provider,
+    generate_summary_stream_with_provider,
+)
 from app.schemas.summary import SummaryResponse
 from app.services.model_selector import determine_model, get_provider_and_model
 from app.services.sse_helpers import sse_event, stream_with_heartbeat
@@ -14,11 +18,11 @@ from app.utils.text_processor import format_output_summary, parse_output_summary
 
 settings = get_settings()
 
+logger = logging.getLogger(__name__)
+
 
 def _error_response(
-        error_msg: str,
-        model: str,
-        model_switched: bool = False
+    error_msg: str, model: str, model_switched: bool = False
 ) -> SummaryResponse:
     return SummaryResponse(
         success=False,
@@ -45,7 +49,9 @@ def validate_input(medical_text: str) -> tuple[bool, str | None]:
         return False, MESSAGES["VALIDATION"]["INPUT_TOO_LONG"]
 
     # プロンプトインジェクション検出
-    is_valid, error_msg = validate_medical_input(medical_text, settings.max_input_tokens)
+    is_valid, error_msg = validate_medical_input(
+        medical_text, settings.max_input_tokens
+    )
     if not is_valid:
         return False, error_msg
 
@@ -102,7 +108,12 @@ def execute_summary_generation(
     total_length = len(medical_text) + len(additional_info or "")
     try:
         final_model, model_switched = determine_model(
-            model, total_length, department, document_type, doctor, model_explicitly_selected
+            model,
+            total_length,
+            department,
+            document_type,
+            doctor,
+            model_explicitly_selected,
         )
     except ValueError as e:
         log_audit_event(
@@ -111,7 +122,7 @@ def execute_summary_generation(
             document_type=document_type,
             model=model,
             success=False,
-            error_message=str(e),
+            error_message=type(e).__name__,
         )
         return _error_response(str(e), model)
 
@@ -125,7 +136,7 @@ def execute_summary_generation(
             document_type=document_type,
             model=final_model,
             success=False,
-            error_message=str(e),
+            error_message=type(e).__name__,
         )
         return _error_response(str(e), final_model, model_switched)
 
@@ -143,15 +154,19 @@ def execute_summary_generation(
             referral_purpose=referral_purpose,
         )
     except Exception as e:
+        # 例外詳細はサーバーログのみに記録（外部APIの例外文字列に入力断片が含まれる可能性があるため）
+        logger.error("文書生成API呼び出しエラー", exc_info=True)
         log_audit_event(
             event_type=get_message("AUDIT", "DOCUMENT_GENERATION_FAILURE"),
             user_ip=user_ip,
             document_type=document_type,
             model=final_model,
             success=False,
-            error_message=str(e),
+            error_message=type(e).__name__,
         )
-        return _error_response(str(e), final_model, model_switched)
+        return _error_response(
+            MESSAGES["ERROR"]["API_ERROR"], final_model, model_switched
+        )
 
     processing_time = time.time() - start_time
 
@@ -220,7 +235,11 @@ def _run_sync_generation(
             metadata = item
         else:
             chunks.append(item)
-    return "".join(chunks), metadata.get("input_tokens", 0), metadata.get("output_tokens", 0)
+    return (
+        "".join(chunks),
+        metadata.get("input_tokens", 0),
+        metadata.get("output_tokens", 0),
+    )
 
 
 async def execute_summary_generation_stream(
@@ -268,18 +287,25 @@ async def execute_summary_generation_stream(
             success=False,
             error_message=error_msg or MESSAGES["ERROR"]["INPUT_ERROR"],
         )
-        yield sse_event("error", {
-            "success": False,
-            "error_message": error_msg or MESSAGES["ERROR"]["INPUT_ERROR"]
-        })
+        yield sse_event(
+            "error",
+            {
+                "success": False,
+                "error_message": error_msg or MESSAGES["ERROR"]["INPUT_ERROR"],
+            },
+        )
         return
 
     # モデル決定
     total_length = len(medical_text) + len(additional_info or "")
     try:
         final_model, model_switched = determine_model(
-            model, total_length, department, document_type,
-            doctor, model_explicitly_selected
+            model,
+            total_length,
+            department,
+            document_type,
+            doctor,
+            model_explicitly_selected,
         )
     except ValueError as e:
         log_audit_event(
@@ -288,7 +314,7 @@ async def execute_summary_generation_stream(
             document_type=document_type,
             model=model,
             success=False,
-            error_message=str(e),
+            error_message=type(e).__name__,
         )
         yield sse_event("error", {"success": False, "error_message": str(e)})
         return
@@ -303,7 +329,7 @@ async def execute_summary_generation_stream(
             document_type=document_type,
             model=final_model,
             success=False,
-            error_message=str(e),
+            error_message=type(e).__name__,
         )
         yield sse_event("error", {"success": False, "error_message": str(e)})
         return
@@ -313,8 +339,15 @@ async def execute_summary_generation_stream(
     async for item in stream_with_heartbeat(
         sync_func=_run_sync_generation,
         sync_func_args=(
-            provider, medical_text, additional_info,
-            current_prescription, department, document_type, doctor, model_name, referral_purpose
+            provider,
+            medical_text,
+            additional_info,
+            current_prescription,
+            department,
+            document_type,
+            doctor,
+            model_name,
+            referral_purpose,
         ),
         start_message=MESSAGES["STATUS"]["DOCUMENT_GENERATION_START"],
         running_status="generating",
@@ -331,9 +364,13 @@ async def execute_summary_generation_stream(
             parsed_summary = parse_output_summary(formatted_summary)
 
             save_usage(
-                department=department, doctor=doctor, document_type=document_type,
-                model=final_model, input_tokens=input_tokens,
-                output_tokens=output_tokens, processing_time=processing_time,
+                department=department,
+                doctor=doctor,
+                document_type=document_type,
+                model=final_model,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                processing_time=processing_time,
             )
 
             # 監査ログ: 成功
@@ -347,13 +384,16 @@ async def execute_summary_generation_stream(
                 processing_time=processing_time,
             )
 
-            yield sse_event("complete", {
-                "success": True,
-                "output_summary": formatted_summary,
-                "parsed_summary": parsed_summary,
-                "input_tokens": input_tokens,
-                "output_tokens": output_tokens,
-                "processing_time": processing_time,
-                "model_used": final_model,
-                "model_switched": model_switched,
-            })
+            yield sse_event(
+                "complete",
+                {
+                    "success": True,
+                    "output_summary": formatted_summary,
+                    "parsed_summary": parsed_summary,
+                    "input_tokens": input_tokens,
+                    "output_tokens": output_tokens,
+                    "processing_time": processing_time,
+                    "model_used": final_model,
+                    "model_switched": model_switched,
+                },
+            )

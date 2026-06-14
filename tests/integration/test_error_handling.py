@@ -1,8 +1,10 @@
 """統合テスト: エラーハンドリング（AI API障害・ストリーミングエラー）"""
+
 from unittest.mock import MagicMock, patch
 
 from fastapi import status
 
+from app.core.constants import MESSAGES
 from app.models.evaluation_prompt import EvaluationPrompt
 from tests.integration.conftest import parse_sse_events
 
@@ -40,17 +42,21 @@ class TestSyncAPIErrors:
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert data["success"] is False
-        assert "Bedrock接続エラー" in data["error_message"]
+        assert data["error_message"] == MESSAGES["ERROR"]["API_ERROR"]
+        # 例外詳細はクライアントに返さない
+        assert "Bedrock接続エラー" not in data["error_message"]
 
     def test_evaluation_api_exception_returns_error_response(
         self, integration_client, db_session, csrf_headers
     ):
         """評価でAI APIが例外を投げるとsuccess=Falseレスポンスが返る"""
-        db_session.add(EvaluationPrompt(
-            document_type="退院時サマリ",
-            content="評価プロンプト",
-            is_active=True,
-        ))
+        db_session.add(
+            EvaluationPrompt(
+                document_type="退院時サマリ",
+                content="評価プロンプト",
+                is_active=True,
+            )
+        )
         db_session.commit()
 
         mock_instance = MagicMock()
@@ -74,7 +80,9 @@ class TestSyncAPIErrors:
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert data["success"] is False
-        assert data["error_message"] is not None
+        assert data["error_message"] == MESSAGES["ERROR"]["EVALUATION_ERROR"]
+        # 例外詳細はクライアントに返さない
+        assert "Gemini API障害" not in data["error_message"]
 
     def test_invalid_model_name_returns_error_response(
         self, integration_client, db_session, csrf_headers
@@ -125,11 +133,13 @@ class TestStreamingErrors:
         self, integration_client, db_session, csrf_headers
     ):
         """ストリーミング評価でAI APIが例外を投げるとerror SSEイベントが返る"""
-        db_session.add(EvaluationPrompt(
-            document_type="退院時サマリ",
-            content="評価プロンプト",
-            is_active=True,
-        ))
+        db_session.add(
+            EvaluationPrompt(
+                document_type="退院時サマリ",
+                content="評価プロンプト",
+                is_active=True,
+            )
+        )
         db_session.commit()
 
         mock_instance = MagicMock()
@@ -160,6 +170,7 @@ class TestStreamingErrors:
         self, integration_client, db_session, csrf_headers
     ):
         """AI APIが空のレスポンスを返した場合でも正常にcompleteイベントが返る"""
+
         def empty_stream():
             yield {"input_tokens": 0, "output_tokens": 0}
 
