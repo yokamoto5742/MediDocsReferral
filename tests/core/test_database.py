@@ -1,5 +1,6 @@
 """データベース層のテスト（インメモリ SQLite 使用、本番DBは触らない）"""
 
+import json
 from collections.abc import Generator
 from typing import cast
 from unittest.mock import MagicMock, patch
@@ -23,6 +24,68 @@ def sqlite_session_factory():
     Base.metadata.create_all(bind=engine)
     yield sessionmaker(autocommit=False, autoflush=False, bind=engine)
     Base.metadata.drop_all(bind=engine)
+
+
+def _secret_response(username: str, password: str) -> dict:
+    """get_secret_value のレスポンスを模した辞書を返す"""
+    return {"SecretString": json.dumps({"username": username, "password": password})}
+
+
+class TestRotatingCredentials:
+    """`_RotatingCredentials` の短TTLキャッシュのテスト"""
+
+    def test_get_returns_username_and_password(self):
+        """初回取得で username/password を返すこと"""
+        client = MagicMock()
+        client.get_secret_value.return_value = _secret_response("dbuser", "pass1")
+
+        with patch("app.core.database.boto3.client", return_value=client):
+            from app.core.database import _RotatingCredentials
+            creds = _RotatingCredentials("rds-secret", 300, "ap-northeast-1")
+            assert creds.get() == ("dbuser", "pass1")
+
+    def test_get_caches_within_ttl(self):
+        """TTL 内の再取得は GetSecretValue を呼ばないこと"""
+        client = MagicMock()
+        client.get_secret_value.return_value = _secret_response("dbuser", "pass1")
+
+        with patch("app.core.database.boto3.client", return_value=client):
+            from app.core.database import _RotatingCredentials
+            creds = _RotatingCredentials("rds-secret", 300, "ap-northeast-1")
+            creds.get()
+            creds.get()
+            assert client.get_secret_value.call_count == 1
+
+    def test_get_force_refresh_refetches(self):
+        """force_refresh=True はキャッシュを無視して再取得すること"""
+        client = MagicMock()
+        client.get_secret_value.side_effect = [
+            _secret_response("dbuser", "old"),
+            _secret_response("dbuser", "new"),
+        ]
+
+        with patch("app.core.database.boto3.client", return_value=client):
+            from app.core.database import _RotatingCredentials
+            creds = _RotatingCredentials("rds-secret", 300, "ap-northeast-1")
+            assert creds.get() == ("dbuser", "old")
+            assert creds.get(force_refresh=True) == ("dbuser", "new")
+            assert client.get_secret_value.call_count == 2
+
+    def test_get_refetches_after_ttl_expiry(self):
+        """TTL 経過後は再取得すること"""
+        client = MagicMock()
+        client.get_secret_value.side_effect = [
+            _secret_response("dbuser", "old"),
+            _secret_response("dbuser", "new"),
+        ]
+
+        with patch("app.core.database.boto3.client", return_value=client), \
+                patch("app.core.database.time.monotonic", side_effect=[0.0, 301.0]):
+            from app.core.database import _RotatingCredentials
+            creds = _RotatingCredentials("rds-secret", 300, "ap-northeast-1")
+            assert creds.get() == ("dbuser", "old")
+            assert creds.get() == ("dbuser", "new")
+            assert client.get_secret_value.call_count == 2
 
 
 class TestGetDb:
