@@ -3,9 +3,10 @@
 from unittest.mock import MagicMock, patch
 
 import pytest
+from anthropic import omit
 from anthropic.types import TextBlock
 
-from app.core.constants import MESSAGES
+from app.core.constants import CLAUDE_GENERATION_TEMPERATURE, MESSAGES
 from app.external.claude_api import ClaudeAPIClient
 from app.utils.exceptions import APIError
 
@@ -195,8 +196,60 @@ class TestClaudeAPIClientGenerateContent:
         mock_client.messages.create.assert_called_once_with(
             model="claude-3-5-sonnet-20241022",
             max_tokens=6000,
+            temperature=CLAUDE_GENERATION_TEMPERATURE,
+            system=omit,
             messages=[{"role": "user", "content": "テストプロンプト"}],
         )
+
+    @patch("app.external.claude_api.get_settings")
+    def test_generate_content_with_system_prompt(self, mock_get_settings):
+        """_generate_content - システムプロンプト指定"""
+        mock_get_settings.return_value = create_mock_settings()
+
+        mock_client = MagicMock()
+        mock_response = MagicMock()
+        mock_response.content = [TextBlock(type="text", text="生成されたサマリー")]
+        mock_response.stop_reason = "end_turn"
+        mock_response.usage.input_tokens = 1500
+        mock_response.usage.output_tokens = 800
+
+        mock_client.messages.create.return_value = mock_response
+
+        client = ClaudeAPIClient()
+        client.client = mock_client
+
+        client._generate_content(
+            prompt="ユーザープロンプト",
+            model_name="claude-3-5-sonnet-20241022",
+            system_prompt="システムプロンプト",
+        )
+
+        _, kwargs = mock_client.messages.create.call_args
+        assert kwargs["system"] == "システムプロンプト"
+
+    @patch("app.external.claude_api.get_settings")
+    def test_generate_content_truncated_output(self, mock_get_settings):
+        """_generate_content - max_tokens到達時に警告を付加"""
+        mock_get_settings.return_value = create_mock_settings()
+
+        mock_client = MagicMock()
+        mock_response = MagicMock()
+        mock_response.content = [TextBlock(type="text", text="途中で切れた文書")]
+        mock_response.stop_reason = "max_tokens"
+        mock_response.usage.input_tokens = 1500
+        mock_response.usage.output_tokens = 6000
+
+        mock_client.messages.create.return_value = mock_response
+
+        client = ClaudeAPIClient()
+        client.client = mock_client
+
+        summary_text, _, _ = client._generate_content(
+            prompt="テストプロンプト", model_name="claude-3-5-sonnet-20241022"
+        )
+
+        assert summary_text.startswith("途中で切れた文書")
+        assert MESSAGES["WARNING"]["OUTPUT_TRUNCATED"] in summary_text
 
     @patch("app.external.claude_api.get_settings")
     def test_generate_content_empty_response(self, mock_get_settings):

@@ -8,6 +8,13 @@ section_aliases = {
     "メモ": "備考"
 }
 
+# 全角文字(日本語・全角記号)。英数字間のスペースは薬剤名や検査値の可読性のため保持する
+_FULLWIDTH_CHAR = r"[　-ヿ㐀-鿿豈-﫿＀-￯]"
+_SPACE_ADJACENT_FULLWIDTH = re.compile(
+    rf"(?<={_FULLWIDTH_CHAR}) +| +(?={_FULLWIDTH_CHAR})"
+)
+_TRAILING_SPACES = re.compile(r"[ \t]+$", re.MULTILINE)
+
 
 def format_output_summary(summary_text: str) -> str:
     """AI出力のフォーマットを整形"""
@@ -15,8 +22,9 @@ def format_output_summary(summary_text: str) -> str:
         summary_text.replace('*', '')
         .replace('＊', '')
         .replace('#', '')
-        .replace(' ', '')
     )
+    processed_text = _SPACE_ADJACENT_FULLWIDTH.sub('', processed_text)
+    processed_text = _TRAILING_SPACES.sub('', processed_text)
 
     return processed_text
 

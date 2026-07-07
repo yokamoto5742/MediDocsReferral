@@ -1,6 +1,6 @@
 from unittest.mock import MagicMock, patch
 
-from app.core.constants import MESSAGES, ModelType
+from app.core.constants import EVALUATION_GROUNDING_INSTRUCTION, MESSAGES, ModelType
 from app.services.evaluation_service import (
     _validate_and_get_prompt,
     build_evaluation_prompt,
@@ -18,7 +18,7 @@ class TestBuildEvaluationPrompt:
         additional_info = "HbA1c 7.5%"
         output_summary = "主病名: 糖尿病"
 
-        result = build_evaluation_prompt(
+        system_prompt, user_prompt = build_evaluation_prompt(
             prompt_template,
             input_text,
             current_prescription,
@@ -26,36 +26,39 @@ class TestBuildEvaluationPrompt:
             output_summary,
         )
 
-        assert prompt_template in result
-        assert "【カルテ記載】" in result
-        assert input_text in result
-        assert "【現在の処方】" in result
-        assert current_prescription in result
-        assert "【追加情報】" in result
-        assert additional_info in result
-        assert "【生成された出力】" in result
-        assert output_summary in result
+        assert prompt_template in system_prompt
+        assert EVALUATION_GROUNDING_INSTRUCTION in system_prompt
+        assert "<カルテ記載>" in user_prompt
+        assert input_text in user_prompt
+        assert "<現在の処方>" in user_prompt
+        assert current_prescription in user_prompt
+        assert "<追加情報>" in user_prompt
+        assert additional_info in user_prompt
+        assert "<生成された出力>" in user_prompt
+        assert output_summary in user_prompt
 
     def test_build_evaluation_prompt_empty_fields(self):
         """評価プロンプト構築 - 空のフィールド"""
         prompt_template = "評価してください"
-        result = build_evaluation_prompt(prompt_template, "", "", "", "出力内容")
+        system_prompt, user_prompt = build_evaluation_prompt(
+            prompt_template, "", "", "", "出力内容"
+        )
 
-        assert prompt_template in result
-        assert "【カルテ記載】" in result
-        assert "【生成された出力】" in result
-        assert "出力内容" in result
+        assert prompt_template in system_prompt
+        assert "<カルテ記載>" in user_prompt
+        assert "<生成された出力>" in user_prompt
+        assert "出力内容" in user_prompt
 
     def test_build_evaluation_prompt_section_order(self):
         """評価プロンプト構築 - セクション順序が正しい"""
-        result = build_evaluation_prompt(
+        _, user_prompt = build_evaluation_prompt(
             "テンプレート", "カルテ", "処方", "追加", "出力"
         )
 
-        カルテ_pos = result.index("【カルテ記載】")
-        処方_pos = result.index("【現在の処方】")
-        追加_pos = result.index("【追加情報】")
-        出力_pos = result.index("【生成された出力】")
+        カルテ_pos = user_prompt.index("<カルテ記載>")
+        処方_pos = user_prompt.index("<現在の処方>")
+        追加_pos = user_prompt.index("<追加情報>")
+        出力_pos = user_prompt.index("<生成された出力>")
 
         assert カルテ_pos < 処方_pos < 追加_pos < 出力_pos
 
@@ -63,12 +66,12 @@ class TestBuildEvaluationPrompt:
         """評価プロンプト構築 - 改行を含むコンテンツ"""
         input_text = "1行目\n2行目\n3行目"
         output_summary = "主病名: 糖尿病\n経過: 良好"
-        result = build_evaluation_prompt(
+        _, user_prompt = build_evaluation_prompt(
             "テンプレート", input_text, "", "", output_summary
         )
 
-        assert input_text in result
-        assert output_summary in result
+        assert input_text in user_prompt
+        assert output_summary in user_prompt
 
 
 class TestValidateAndGetPrompt:

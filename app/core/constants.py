@@ -29,6 +29,31 @@ DEFAULT_DOCUMENT_TYPE = "他院への紹介"
 DEFAULT_SUMMARY_PROMPT = """
 以下のカルテ情報を要約してください。これまでの治療内容を記載してください。
 """
+
+# 生成時の温度(事実性・再現性優先。Geminiはthinkingモデルの推奨に従いデフォルトを維持)
+CLAUDE_GENERATION_TEMPERATURE = 0.2
+
+# app/external/base_api.py: システムプロンプトに常時付加する指示
+GROUNDING_INSTRUCTION = (
+    "カルテ情報に記載されている事実のみを使用し、記載のない情報は追加しないでください。"
+    "経過は記載日時に沿って時系列で整理してください。"
+)
+# カルテ情報がJSON形式の場合に付加する指示
+KARTE_JSON_INSTRUCTION = (
+    "カルテ情報はJSON形式です。日時を表すフィールドをもとに時系列を把握してください。"
+    "JSONのキー名は文書に転記しないでください。"
+)
+# 評価結果を反映した再生成時に付加する指示
+REFINEMENT_INSTRUCTION = (
+    "前回の生成結果に対する評価結果の指摘事項を反映し、"
+    "修正した文書を前回と同じ形式で全文出力してください。"
+)
+# app/services/evaluation_service.py: 評価プロンプトに常時付加する指示
+EVALUATION_GROUNDING_INSTRUCTION = (
+    "各指摘には、根拠となるカルテ記載・現在の処方・追加情報の該当箇所を引用してください。"
+    "生成された出力のうちカルテ情報に根拠が見つからない記述は、"
+    "ハルシネーションの可能性があるとして必ず指摘してください。"
+)
 # app/utils/text_processor.py
 # 【治療経過】: 内容 など(改行含む)
 # 治療経過: 内容 など(改行含む)
@@ -132,6 +157,9 @@ MESSAGES: dict[str, dict[str, str]] = {
         "EVALUATING": "評価中...",
         "EVALUATING_ELAPSED": "評価中... ({elapsed}秒経過)",
         "EVALUATION_START": "評価を開始します...",
+    },
+    "WARNING": {
+        "OUTPUT_TRUNCATED": "※出力が上限に達したため、文書が途中で切れている可能性があります",
     },
     "INFO": {
         "AI_DISCLAIMER_EVALUATION": "AIは間違えることがあります。内容はカルテでご確認ください。",

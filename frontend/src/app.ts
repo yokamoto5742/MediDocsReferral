@@ -36,10 +36,11 @@ interface AppState {
     updateDoctors(): Promise<void>;
     startTimer(): void;
     stopTimer(): void;
-    generateSummary(): Promise<void>;
+    buildSummaryRequestBody(refine: boolean): Record<string, unknown>;
+    generateSummary(refine?: boolean): Promise<void>;
     processSSEStream(response: Response): Promise<void>;
     handleSSEEvent(eventText: string): void;
-    generateSummaryFallback(): Promise<void>;
+    generateSummaryFallback(refine?: boolean): Promise<void>;
     clearForm(): void;
     backToInput(): void;
     backToOutput(): void;
@@ -181,7 +182,27 @@ export function appState(): AppState {
             }
         },
 
-        async generateSummary() {
+        buildSummaryRequestBody(refine: boolean): Record<string, unknown> {
+            const body: Record<string, unknown> = {
+                referral_purpose: this.form.referralPurpose,
+                current_prescription: this.form.currentPrescription,
+                medical_text: this.form.medicalText,
+                additional_info: this.form.additionalInfo,
+                department: this.settings.department,
+                doctor: this.settings.doctor,
+                document_type: this.settings.documentType,
+                model: this.settings.model,
+                model_explicitly_selected: true
+            };
+            // 評価結果を反映した再生成の場合、前回の出力と評価結果を送信
+            if (refine) {
+                body.previous_summary = this.result.outputSummary;
+                body.evaluation_feedback = this.evaluationResult.result;
+            }
+            return body;
+        },
+
+        async generateSummary(refine = false) {
             if (!this.form.medicalText.trim()) {
                 this.error = window.MESSAGES?.VALIDATION?.NO_INPUT ?? 'カルテ情報を入力してください';
                 return;
@@ -195,22 +216,12 @@ export function appState(): AppState {
                 const response = await fetch('/api/summary/generate-stream', {
                     method: 'POST',
                     headers: getHeaders({ 'Content-Type': 'application/json' }),
-                    body: JSON.stringify({
-                        referral_purpose: this.form.referralPurpose,
-                        current_prescription: this.form.currentPrescription,
-                        medical_text: this.form.medicalText,
-                        additional_info: this.form.additionalInfo,
-                        department: this.settings.department,
-                        doctor: this.settings.doctor,
-                        document_type: this.settings.documentType,
-                        model: this.settings.model,
-                        model_explicitly_selected: true
-                    })
+                    body: JSON.stringify(this.buildSummaryRequestBody(refine))
                 });
 
                 if (!response.ok) {
                     console.warn(`SSEストリーミングエンドポイントが利用不可 (status: ${response.status})、非ストリーミングにフォールバック`);
-                    await this.generateSummaryFallback();
+                    await this.generateSummaryFallback(refine);
                     return;
                 }
 
@@ -220,7 +231,7 @@ export function appState(): AppState {
                 console.error('SSEストリーミング中にエラーが発生:', e);
                 // ネットワークエラー時は非ストリーミングにフォールバック
                 try {
-                    await this.generateSummaryFallback();
+                    await this.generateSummaryFallback(refine);
                 } catch (fallbackError) {
                     console.error('フォールバックも失敗:', fallbackError);
                     this.error = window.MESSAGES?.ERROR?.API_ERROR ?? 'API エラーが発生しました';
@@ -311,21 +322,11 @@ export function appState(): AppState {
             }
         },
 
-        async generateSummaryFallback() {
+        async generateSummaryFallback(refine = false) {
             const response = await fetch('/api/summary/generate', {
                 method: 'POST',
                 headers: getHeaders({ 'Content-Type': 'application/json' }),
-                body: JSON.stringify({
-                    referral_purpose: this.form.referralPurpose,
-                    current_prescription: this.form.currentPrescription,
-                    medical_text: this.form.medicalText,
-                    additional_info: this.form.additionalInfo,
-                    department: this.settings.department,
-                    doctor: this.settings.doctor,
-                    document_type: this.settings.documentType,
-                    model: this.settings.model,
-                    model_explicitly_selected: true
-                })
+                body: JSON.stringify(this.buildSummaryRequestBody(refine))
             });
 
             const data = await response.json() as SummaryResponse;

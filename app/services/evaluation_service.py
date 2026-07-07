@@ -3,7 +3,12 @@ import time
 from typing import AsyncGenerator, cast
 
 from app.core.config import get_settings
-from app.core.constants import MESSAGES, ModelType, get_message
+from app.core.constants import (
+    EVALUATION_GROUNDING_INSTRUCTION,
+    MESSAGES,
+    ModelType,
+    get_message,
+)
 from app.core.database import get_db_session
 from app.external.api_factory import APIProvider, create_client
 from app.schemas.evaluation import EvaluationResponse
@@ -92,22 +97,25 @@ def build_evaluation_prompt(
     current_prescription: str,
     additional_info: str,
     output_summary: str,
-) -> str:
-    """評価用プロンプトを構築"""
-    return f"""{prompt_template}
-
-【カルテ記載】
+) -> tuple[str, str]:
+    """評価用の (システムプロンプト, ユーザープロンプト) を構築"""
+    system_prompt = f"{prompt_template.strip()}\n\n{EVALUATION_GROUNDING_INSTRUCTION}"
+    user_prompt = f"""<カルテ記載>
 {input_text}
+</カルテ記載>
 
-【現在の処方】
+<現在の処方>
 {current_prescription}
+</現在の処方>
 
-【追加情報】
+<追加情報>
 {additional_info}
+</追加情報>
 
-【生成された出力】
+<生成された出力>
 {output_summary}
-"""
+</生成された出力>"""
+    return system_prompt, user_prompt
 
 
 def execute_evaluation(
@@ -155,7 +163,7 @@ def execute_evaluation(
     assert provider is not None
     assert model_name is not None
 
-    full_prompt = build_evaluation_prompt(
+    system_prompt, user_prompt = build_evaluation_prompt(
         prompt_template,
         input_text,
         current_prescription,
@@ -169,7 +177,7 @@ def execute_evaluation(
         client.initialize()
 
         evaluation_text, input_tokens, output_tokens = client._generate_content(
-            full_prompt, model_name
+            user_prompt, model_name, system_prompt
         )
         processing_time = time.time() - start_time
 
@@ -214,7 +222,7 @@ def _run_sync_evaluation(
     prompt_template: str,
 ) -> tuple[str, int, int]:
     """同期的に評価を実行"""
-    full_prompt = build_evaluation_prompt(
+    system_prompt, user_prompt = build_evaluation_prompt(
         prompt_template,
         input_text,
         current_prescription,
@@ -229,7 +237,7 @@ def _run_sync_evaluation(
     client.initialize()
 
     evaluation_text, input_tokens, output_tokens = client._generate_content(
-        full_prompt, model_name
+        user_prompt, model_name, system_prompt
     )
 
     return evaluation_text, input_tokens, output_tokens

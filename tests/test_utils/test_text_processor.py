@@ -23,10 +23,22 @@ class TestFormatOutputSummary:
         assert result == "現在の処方:アムロジピン"
 
     def test_format_remove_halfwidth_space(self):
-        """フォーマット - 半角スペース削除"""
+        """フォーマット - 全角文字に隣接する半角スペース削除"""
         input_text = "備考 : 定期フォローアップ必要"
         result = format_output_summary(input_text)
         assert result == "備考:定期フォローアップ必要"
+
+    def test_format_preserve_space_between_ascii(self):
+        """フォーマット - 英数字間の半角スペースは保持"""
+        input_text = "検査値: CRP 0.5 mg/dL"
+        result = format_output_summary(input_text)
+        assert result == "検査値: CRP 0.5 mg/dL"
+
+    def test_format_preserve_space_in_english_words(self):
+        """フォーマット - 英語の病名等のスペースは保持"""
+        input_text = "既往歴: Parkinson disease あり"
+        result = format_output_summary(input_text)
+        assert result == "既往歴: Parkinson diseaseあり"
 
     def test_format_remove_all_special_characters(self):
         """フォーマット - 複合パターン"""
