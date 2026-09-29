@@ -18,6 +18,11 @@ permissions:
   id-token: write   # OIDC認証に必要
   contents: read
 
+# 同時実行されたデプロイが互いのECSデプロイを上書きしないよう直列化する
+concurrency:
+  group: deploy-ecs
+  cancel-in-progress: false
+
 jobs:
   test:
     name: テスト実行
