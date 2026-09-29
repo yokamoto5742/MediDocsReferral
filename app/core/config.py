@@ -75,7 +75,7 @@ class Settings(BaseSettings):
         ssl_param = "?sslmode=require" if self.postgres_ssl else ""
         encoded_password = quote_plus(self.postgres_password)
         return (
-            f"postgresql://{self.postgres_user}:{encoded_password}"
+            f"postgresql+psycopg2://{self.postgres_user}:{encoded_password}"
             f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}{ssl_param}"
         )
 
