@@ -321,7 +321,7 @@ class TestExecuteEvaluation:
         assert result.success is False
         assert result.error_message == MESSAGES["ERROR"]["EVALUATION_ERROR"]
         # 例外詳細はクライアントに返さない
-        assert "Gemini APIエラー" not in result.error_message
+        assert "Gemini APIエラー" not in (result.error_message or "")
 
     def test_generic_exception_returns_error_response(self):
         """一般例外: success=False で返る"""
@@ -363,7 +363,7 @@ class TestExecuteEvaluation:
         assert result.success is False
         assert result.error_message == MESSAGES["ERROR"]["EVALUATION_ERROR"]
         # 例外詳細はクライアントに返さない
-        assert "予期せぬエラー" not in result.error_message
+        assert "予期せぬエラー" not in (result.error_message or "")
 
 
 class TestExecuteEvaluationStream:
