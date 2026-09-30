@@ -54,9 +54,10 @@ class ClaudeAPIClient(BaseAPIClient):
             response = self.client.messages.create(
                 model=model_name,
                 max_tokens=6000,
-                temperature=CLAUDE_GENERATION_TEMPERATURE,
                 system=system_prompt or omit,
                 messages=[{"role": "user", "content": prompt}],
+                # anthropic SDK 1.x で temperature 引数が削除されたため extra_body で送信する
+                extra_body={"temperature": CLAUDE_GENERATION_TEMPERATURE},
             )
 
             summary_text = MESSAGES["ERROR"]["EMPTY_RESPONSE"]

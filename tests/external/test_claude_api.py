@@ -196,9 +196,9 @@ class TestClaudeAPIClientGenerateContent:
         mock_client.messages.create.assert_called_once_with(
             model="claude-3-5-sonnet-20241022",
             max_tokens=6000,
-            temperature=CLAUDE_GENERATION_TEMPERATURE,
             system=omit,
             messages=[{"role": "user", "content": "テストプロンプト"}],
+            extra_body={"temperature": CLAUDE_GENERATION_TEMPERATURE},
         )
 
     @patch("app.external.claude_api.get_settings")
