@@ -33,7 +33,7 @@ aws bedrock get-foundation-model-availability --model-id anthropic.claude-sonnet
 1. 管理者権限を持つユーザーで [AWS マネジメントコンソール](https://console.aws.amazon.com/) にサインインする
 2. 画面右上のリージョンを **アジアパシフィック (東京) ap-northeast-1** に切り替える
    - アプリ（`AWS_REGION`）と同じリージョンで実行すること
-3. 上部の検索バーに `Bedrock` と入力し、**Amazon Bedrock** を開く
+3. **Amazon Bedrock** を開く
 
 ## 3. Playground でモデルを選択する
 
