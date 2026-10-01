@@ -62,12 +62,7 @@
 
 廃止すれば `execute_summary_generation`、`execute_evaluation`、`/generate`、`/evaluate`、`generateSummaryFallback`、`evaluateOutputFallback`、`BaseAPIClient.generate_summary`、`generate_summary_with_provider` が不要になる。削減量は Python で約 250 行、TypeScript で約 60 行。対応するテスト (`tests/api/test_summary.py`、`tests/services/test_summary_service.py` など) の書き換えが必要。
 
-### 代替: 両経路を残す場合
-
-- 前処理を `_prepare_generation(...) -> PreparedRequest | str` (エラー時はメッセージを返す) に切り出し、両経路から呼ぶ。
-- 成功時の後処理 (`save_usage`、監査ログ、レスポンス組み立て) を `_build_success_response` に切り出す。SSE の `complete` は `SummaryResponse.model_dump()` を流せば、手書きの dict (`summary_service.py:405-414`) が不要になる。
-
-### フロントエンド (どちらの場合も実施)
+### フロントエンド 
 
 - SSE 読み取りを `readSSE(response, onEvent)` の 1 関数にまとめ、`event` と `data` のパースもそこで行う。
 - タイマーは 1 組にする。生成と評価は同時に走らないため、`elapsedTime` / `timerInterval` を共有できる。
@@ -212,9 +207,9 @@ yield task.result()  # 例外は呼び出し側で捕捉し、監査ログとエ
 
 ---
 
-## 進め方の提案
+## 進め方
 
 1. **1 (型エラー)** を先に直し、ビルドに型チェックを組み込む。影響範囲が小さく、以降のリファクタリングの安全網になる。
-2. **2 の方針** (非ストリーミング経路を廃止するか) を決める。3・4・5・7 の作業量がこれで大きく変わる。
+2. **2 の方針**  非ストリーミング経路を廃止する
 3. **3 → 4 → 5** をまとめて実施する。同じ呼び出し経路を触るため、1 回のリファクタリングで済ませるほうが差分が小さい。
 4. 6 以降は独立しているので、個別に対応できる。
