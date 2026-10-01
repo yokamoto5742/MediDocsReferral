@@ -34,7 +34,7 @@ def _add_usage_records(db_session, count: int) -> None:
             input_tokens=100,
             output_tokens=50,
             processing_time=1.0,
-            app_type="dischargesummary",
+            app_type="referral_letter",
         ))
     db_session.commit()
 

@@ -154,7 +154,7 @@ class TestSaveUsage:
         assert added.input_tokens == 1000
         assert added.output_tokens == 500
         assert added.processing_time == 2.5
-        assert added.app_type == "dischargesummary"
+        assert added.app_type == "referral_letter"
 
     @patch("app.services.usage_service.get_db_session")
     @patch("app.services.usage_service.logger")

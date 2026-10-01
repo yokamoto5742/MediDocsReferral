@@ -2,6 +2,18 @@
 
 このプロジェクトの変更履歴は[Keep a Changelog](https://keepachangelog.com/ja/1.1.0/)の仕様に従い、[セマンティック バージョニング](https://semver.org/lang/ja/)を採用しています。
 
+## [1.2.1] - 2026-10-01
+
+### 変更
+
+- **使用統計のアプリケーションタイプを統一**: USAGE_APP_TYPE を "dischargesummary" から "referral_letter" に変更（`app/core/constants.py`）。テストの期待値・フィクスチャも同様に統一
+
+### 削除
+
+- **未使用メッセージ定数の削除**: `constants.py` から未使用の `FIELD_REQUIRED` メッセージ定義とフロントエンド公開キー一覧を削除
+
+---
+
 ## [1.2.0] - 2026-09-29
 
 ### 変更
@@ -149,6 +161,7 @@
 
 ## リンク
 
+[1.2.1]: https://github.com/yourusername/MediDocsReferral/releases/tag/v1.2.1
 [1.2.0]: https://github.com/yourusername/MediDocsReferral/releases/tag/v1.2.0
 [1.1.1]: https://github.com/yourusername/MediDocsReferral/releases/tag/v1.1.1
 [1.1.0]: https://github.com/yourusername/MediDocsReferral/releases/tag/v1.1.0

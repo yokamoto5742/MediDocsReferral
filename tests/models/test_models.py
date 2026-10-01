@@ -275,7 +275,7 @@ class TestSummaryUsageModel:
             input_tokens=1000,
             output_tokens=500,
             processing_time=2.5,
-            app_type="dischargesummary",
+            app_type="referral_letter",
         )
         db.add(usage)
         db.flush()
@@ -288,7 +288,7 @@ class TestSummaryUsageModel:
         assert fetched.input_tokens == 1000
         assert fetched.output_tokens == 500
         assert fetched.processing_time == 2.5
-        assert fetched.app_type == "dischargesummary"
+        assert fetched.app_type == "referral_letter"
 
     def test_all_fields_nullable(self, db):
         """数値フィールドは NULL 許容"""

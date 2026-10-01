@@ -16,8 +16,8 @@ DOCUMENT_TYPES = ["他院への紹介", "紹介元への逆紹介", "返書", "�
 
 # 統計情報
 DEFAULT_STATISTICS_PERIOD_DAYS = 7
-# 使用統計 (summary_usage.app_type) に記録するアプリ種別。既存レコードの値を引き継いでいる
-USAGE_APP_TYPE = "dischargesummary"
+# 使用統計 (summary_usage.app_type) に記録するアプリ種別
+USAGE_APP_TYPE = "referral_letter"
 
 # 出力結果
 DEFAULT_SECTION_NAMES = [
@@ -118,7 +118,6 @@ MESSAGES: dict[str, dict[str, str]] = {
         "EVALUATION_NO_OUTPUT": "評価対象の出力がありません",
         "EVALUATION_PROMPT_CONTENT_REQUIRED": "評価プロンプトの内容を入力してください",
         "EVALUATION_PROMPT_NOT_SET": "{document_type}の評価プロンプトが設定されていません",
-        "FIELD_REQUIRED": "すべての項目を入力してください",
         "INPUT_LIMIT_EXCEEDED": "入力テキストが上限（{limit}文字）を超えています",
         "INPUT_TOO_LONG": "入力テキストが長すぎます",
         "INPUT_TOO_SHORT": "入力文字数が少なすぎます",
@@ -214,7 +213,6 @@ _FRONTEND_MESSAGE_KEYS: dict[str, list[str]] = {
     "VALIDATION": [
         "ALL_REQUIRED_FIELDS",
         "EVALUATION_NO_OUTPUT",
-        "FIELD_REQUIRED",
         "NO_INPUT",
         "NO_PERSONAL_INFO",
         "PROMPT_CONTENT_REQUIRED",

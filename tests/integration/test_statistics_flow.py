@@ -28,7 +28,7 @@ def _add_usage(db_session, model: str, department: str, days_ago: int = 0, count
             input_tokens=100,
             output_tokens=50,
             processing_time=1.0,
-            app_type="dischargesummary",
+            app_type="referral_letter",
         ))
     db_session.commit()
 
