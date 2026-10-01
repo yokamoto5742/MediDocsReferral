@@ -303,10 +303,12 @@ tests/                    # テストスイート
 APIプロバイダー（Claude/Gemini）の動的インスタンス化を管理する関数を提供します：
 
 ```python
-from app.external.api_factory import create_client, APIProvider
+from app.core.constants import ModelType
+from app.external.api_factory import create_client
 
-client = create_client(APIProvider.CLAUDE)
-result = client.generate_summary(medical_text, additional_info, ...)
+client = create_client(ModelType.CLAUDE)
+# request は SummaryRequest、model_name は model_selector.get_model_name() で取得したモデル名
+output_summary, input_tokens, output_tokens = client.generate_summary(request, model_name)
 ```
 
 ### Service Layer Pattern
@@ -325,7 +327,7 @@ result = client.generate_summary(medical_text, additional_info, ...)
   - `model_explicitly_selected=False`の場合、DBから医師/診療科/文書タイプ別のモデル設定を取得
   - 入力が`MAX_TOKEN_THRESHOLD`（デフォルト100,000文字）を超え、Claudeが選択されている場合、自動的にGeminiに切り替え
   - Geminiが設定されていない場合はエラーを返す
-- `get_provider_and_model()`: モデル名からプロバイダーとモデルのIDを取得
+- `get_model_name()`: モデル種別（Claude / Gemini）からAPIに渡すモデル名を取得
 - 閾値は環境変数`MAX_TOKEN_THRESHOLD`で調整可能
 
 ### 階層的プロンプトシステム
@@ -344,7 +346,6 @@ result = client.generate_summary(medical_text, additional_info, ...)
 `app/core/constants.py`で定数を一元管理：
 
 - `ModelType` Enum: "Claude"、"Gemini"などのモデル名
-- `APIProvider` Enum: CLAUDE、GEMINI
 - 診療科・医師マッピング
 - 文書タイプ
 - ユーザー向けメッセージ（日本語）
@@ -355,7 +356,7 @@ result = client.generate_summary(medical_text, additional_info, ...)
 
 **インスタンス化**:
 
-- `api_factory.create_client(APIProvider)` で適切なクライアントを動的に生成
+- `api_factory.create_client(ModelType)` で適切なクライアントを動的に生成
 -  GeminiAPIClient/ClaudeAPIClient を使用
 
 ### データフロー

@@ -5,8 +5,15 @@ from unittest.mock import patch
 
 from fastapi import status
 
+from app.core.constants import MESSAGES
+from app.models.prompt import Prompt
 from app.models.usage import SummaryUsage
-from tests.integration.conftest import make_test_settings, parse_sse_events
+from tests.integration.conftest import (
+    make_test_settings,
+    parse_sse_events,
+    patch_ai_client,
+    sse_event_data,
+)
 
 JST = ZoneInfo("Asia/Tokyo")
 
@@ -16,17 +23,32 @@ VALID_MEDICAL_TEXT = (
 )
 
 
-class TestSyncSummaryGeneration:
-    def test_success_returns_response_and_saves_usage(
+def _add_usage_records(db_session, count: int) -> None:
+    for _ in range(count):
+        db_session.add(SummaryUsage(
+            date=datetime.now(JST),
+            department="内科",
+            doctor="default",
+            document_type="退院時サマリ",
+            model="Claude",
+            input_tokens=100,
+            output_tokens=50,
+            processing_time=1.0,
+            app_type="dischargesummary",
+        ))
+    db_session.commit()
+
+
+class TestStreamingSummaryGeneration:
+    def test_success_emits_events_and_saves_usage(
         self, integration_client, db_session, csrf_headers
     ):
-        """正常系: 同期生成でレスポンスが返り、使用量がDBに記録される"""
-        with patch(
-            "app.services.summary_service.generate_summary_with_provider",
-            return_value=("現病歴: 糖尿病\n入院経過: 改善", 1000, 500),
+        """正常系: progress→completeのSSEイベントが返り、使用量がDBに記録される"""
+        with patch_ai_client(
+            "summary", result=("現病歴: 糖尿病\n入院経過: 改善", 1000, 500)
         ):
             response = integration_client.post(
-                "/api/summary/generate",
+                "/api/summary/generate-stream",
                 json={
                     "medical_text": VALID_MEDICAL_TEXT,
                     "additional_info": "HbA1c 9.2%",
@@ -41,14 +63,20 @@ class TestSyncSummaryGeneration:
             )
 
         assert response.status_code == status.HTTP_200_OK
-        data = response.json()
+        assert "text/event-stream" in response.headers["content-type"]
+
+        event_types = [e["type"] for e in parse_sse_events(response.text)]
+        assert event_types[0] == "progress"
+        assert event_types[-1] == "complete"
+
+        data = sse_event_data(response, "complete")
         assert data["success"] is True
-        assert data["output_summary"] != ""
+        # 全角文字に隣接するスペースは整形で除去される
+        assert data["output_summary"] == "現病歴:糖尿病\n入院経過:改善"
         assert data["input_tokens"] == 1000
         assert data["output_tokens"] == 500
         assert data["model_used"] == "Claude"
         assert data["model_switched"] is False
-        assert data["error_message"] is None
 
         db_session.expire_all()
         usage = db_session.query(SummaryUsage).first()
@@ -59,20 +87,20 @@ class TestSyncSummaryGeneration:
         assert usage.input_tokens == 1000
         assert usage.output_tokens == 500
 
-    def test_input_too_short_returns_error(
+    def test_input_too_short_emits_error_event(
         self, integration_client, db_session, csrf_headers
     ):
-        """入力が短すぎる場合はエラーレスポンスを返し、使用量は記録しない"""
+        """入力が短すぎる場合はerrorイベントを返し、使用量は記録しない"""
         response = integration_client.post(
-            "/api/summary/generate",
+            "/api/summary/generate-stream",
             json={"medical_text": "短い"},
             headers=csrf_headers,
         )
 
         assert response.status_code == status.HTTP_200_OK
-        data = response.json()
+        data = sse_event_data(response, "error")
         assert data["success"] is False
-        assert data["error_message"] is not None
+        assert data["error_message"] == MESSAGES["VALIDATION"]["INPUT_TOO_SHORT"]
 
         db_session.expire_all()
         assert db_session.query(SummaryUsage).count() == 0
@@ -86,48 +114,31 @@ class TestSyncSummaryGeneration:
             "患者は60歳男性。糖尿病にて加療中。インスリン調整を行っている。" * 3
         )
         response = integration_client.post(
-            "/api/summary/generate",
+            "/api/summary/generate-stream",
             json={"medical_text": injection_text},
             headers=csrf_headers,
         )
 
         assert response.status_code == status.HTTP_200_OK
-        data = response.json()
-        assert data["success"] is False
-        assert data["error_message"] is not None
+        data = sse_event_data(response, "error")
+        assert data["error_message"] == MESSAGES["VALIDATION"]["SUSPICIOUS_INPUT"]
 
-    def test_daily_request_limit_exceeded_returns_error(
+    def test_daily_request_limit_exceeded_emits_error_event(
         self, integration_client, db_session, csrf_headers
     ):
-        """日次リクエスト制限超過時はエラーレスポンスを返す"""
+        """日次リクエスト制限超過時はerrorイベントを返す"""
         low_limit_settings = make_test_settings(daily_request_limit=2)
+        _add_usage_records(db_session, 2)
 
-        for _ in range(2):
-            db_session.add(SummaryUsage(
-                date=datetime.now(JST),
-                department="内科",
-                doctor="default",
-                document_type="退院時サマリ",
-                model="Claude",
-                input_tokens=100,
-                output_tokens=50,
-                processing_time=1.0,
-                app_type="dischargesummary",
-            ))
-        db_session.commit()
-
-        with patch(
-            "app.services.usage_service.get_settings",
-            return_value=low_limit_settings,
-        ):
+        with patch("app.services.usage_service.settings", low_limit_settings):
             response = integration_client.post(
-                "/api/summary/generate",
+                "/api/summary/generate-stream",
                 json={"medical_text": VALID_MEDICAL_TEXT},
                 headers=csrf_headers,
             )
 
         assert response.status_code == status.HTTP_200_OK
-        data = response.json()
+        data = sse_event_data(response, "error")
         assert data["success"] is False
         assert "2" in data["error_message"]
 
@@ -139,13 +150,10 @@ class TestSyncSummaryGeneration:
 
         with (
             patch("app.services.model_selector.settings", low_threshold_settings),
-            patch(
-                "app.services.summary_service.generate_summary_with_provider",
-                return_value=("生成結果テキスト", 5000, 1000),
-            ),
+            patch_ai_client("summary", result=("生成結果テキスト", 5000, 1000)),
         ):
             response = integration_client.post(
-                "/api/summary/generate",
+                "/api/summary/generate-stream",
                 json={
                     "medical_text": VALID_MEDICAL_TEXT,
                     "model": "Claude",
@@ -155,8 +163,7 @@ class TestSyncSummaryGeneration:
             )
 
         assert response.status_code == status.HTTP_200_OK
-        data = response.json()
-        assert data["success"] is True
+        data = sse_event_data(response, "complete")
         assert data["model_used"] == "Gemini"
         assert data["model_switched"] is True
 
@@ -164,7 +171,6 @@ class TestSyncSummaryGeneration:
         self, integration_client, db_session, csrf_headers
     ):
         """model_explicitly_selected=TrueのときはDBプロンプトのモデル設定を無視する"""
-        from app.models.prompt import Prompt
         # DBプロンプトにGeminiを設定
         db_session.add(Prompt(
             department="default", doctor="default",
@@ -173,20 +179,12 @@ class TestSyncSummaryGeneration:
         ))
         db_session.commit()
 
-        captured: dict = {}
-
-        def capture_generate(**kwargs):
-            captured["provider"] = kwargs.get("provider", "")
-            return "生成テキスト", 100, 50
-
-        with patch(
-            "app.services.summary_service.generate_summary_with_provider",
-            side_effect=capture_generate,
-        ):
+        with patch_ai_client("summary") as mock_client:
             response = integration_client.post(
-                "/api/summary/generate",
+                "/api/summary/generate-stream",
                 json={
                     "medical_text": VALID_MEDICAL_TEXT,
+                    "document_type": "退院時サマリ",
                     "model": "Claude",
                     "model_explicitly_selected": True,  # 明示的にClaudeを選択
                 },
@@ -194,10 +192,9 @@ class TestSyncSummaryGeneration:
             )
 
         assert response.status_code == status.HTTP_200_OK
-        data = response.json()
-        assert data["success"] is True
         # DBのGeminiを無視してClaudeが使用される
-        assert data["model_used"] == "Claude"
+        assert sse_event_data(response, "complete")["model_used"] == "Claude"
+        assert mock_client.generate_summary.call_args[0][1] == "anthropic-test-model"
 
     def test_xss_input_is_sanitized_before_ai_call(
         self, integration_client, csrf_headers
@@ -208,18 +205,10 @@ class TestSyncSummaryGeneration:
             "<script>alert('xss')</script>"
             "糖尿病にて長期加療中。血糖値コントロール不良の状態が続いている。"
         )
-        captured: dict = {}
 
-        def capture_generate(**kwargs):
-            captured["medical_text"] = kwargs.get("medical_text", "")
-            return "生成テキスト", 100, 50
-
-        with patch(
-            "app.services.summary_service.generate_summary_with_provider",
-            side_effect=capture_generate,
-        ):
+        with patch_ai_client("summary") as mock_client:
             response = integration_client.post(
-                "/api/summary/generate",
+                "/api/summary/generate-stream",
                 json={
                     "medical_text": medical_text_with_xss,
                     "model": "Claude",
@@ -229,95 +218,7 @@ class TestSyncSummaryGeneration:
             )
 
         assert response.status_code == status.HTTP_200_OK
-        assert response.json()["success"] is True
-        assert "<script>" not in captured.get("medical_text", "")
-
-
-class TestStreamingSummaryGeneration:
-    def test_success_emits_progress_and_complete_events(
-        self, integration_client, csrf_headers
-    ):
-        """ストリーミング生成でprogress→completeのSSEイベントが返る"""
-        def mock_stream_generator():
-            yield "現病歴: 糖尿病\n"
-            yield "入院経過: 改善\n"
-            yield {"input_tokens": 1000, "output_tokens": 500}
-
-        with patch(
-            "app.services.summary_service.generate_summary_stream_with_provider",
-            return_value=mock_stream_generator(),
-        ):
-            response = integration_client.post(
-                "/api/summary/generate-stream",
-                json={
-                    "medical_text": VALID_MEDICAL_TEXT,
-                    "model": "Claude",
-                    "model_explicitly_selected": True,
-                },
-                headers=csrf_headers,
-            )
-
-        assert response.status_code == status.HTTP_200_OK
-        assert "text/event-stream" in response.headers["content-type"]
-
-        events = parse_sse_events(response.text)
-        event_types = [e["type"] for e in events]
-        assert "progress" in event_types
-        assert "complete" in event_types
-
-        complete_event = next(e for e in events if e["type"] == "complete")
-        assert complete_event["data"]["success"] is True
-        assert complete_event["data"]["model_used"] == "Claude"
-        assert complete_event["data"]["input_tokens"] == 1000
-        assert complete_event["data"]["output_tokens"] == 500
-
-    def test_daily_limit_exceeded_emits_error_event(
-        self, integration_client, db_session, csrf_headers
-    ):
-        """日次制限超過時はSSE errorイベントが返る"""
-        low_limit_settings = make_test_settings(daily_request_limit=1)
-
-        db_session.add(SummaryUsage(
-            date=datetime.now(JST),
-            department="default",
-            doctor="default",
-            document_type="退院時サマリ",
-            model="Claude",
-            input_tokens=100,
-            output_tokens=50,
-            processing_time=1.0,
-            app_type="dischargesummary",
-        ))
-        db_session.commit()
-
-        with patch(
-            "app.services.usage_service.get_settings",
-            return_value=low_limit_settings,
-        ):
-            response = integration_client.post(
-                "/api/summary/generate-stream",
-                json={"medical_text": VALID_MEDICAL_TEXT, "model": "Claude"},
-                headers=csrf_headers,
-            )
-
-        assert response.status_code == status.HTTP_200_OK
-        events = parse_sse_events(response.text)
-        error_events = [e for e in events if e["type"] == "error"]
-        assert len(error_events) > 0
-        assert error_events[0]["data"]["success"] is False
-
-    def test_invalid_input_emits_error_event(
-        self, integration_client, csrf_headers
-    ):
-        """短い入力のストリーミングリクエストはSSE errorイベントが返る"""
-        response = integration_client.post(
-            "/api/summary/generate-stream",
-            json={"medical_text": "短い"},
-            headers=csrf_headers,
-        )
-
-        assert response.status_code == status.HTTP_200_OK
-        events = parse_sse_events(response.text)
-        error_events = [e for e in events if e["type"] == "error"]
-        assert len(error_events) > 0
-        assert error_events[0]["data"]["success"] is False
+        assert sse_event_data(response, "complete")["success"] is True
+        request = mock_client.generate_summary.call_args[0][0]
+        assert "<script>" not in request.medical_text
+        assert "糖尿病にて長期加療中" in request.medical_text

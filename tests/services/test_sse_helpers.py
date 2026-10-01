@@ -1,9 +1,9 @@
+import asyncio
 import json
 
 import pytest
 
-from app.core.constants import MESSAGES
-from app.services.sse_helpers import sse_event, stream_with_heartbeat
+from app.services.sse_helpers import heartbeat_events, sse_error, sse_event
 
 
 class TestSseEvent:
@@ -45,58 +45,66 @@ class TestSseEvent:
         assert parsed["input_tokens"] == 1000
 
 
-class TestStreamWithHeartbeat:
-    """stream_with_heartbeat 関数のテスト"""
+    def test_sse_error(self):
+        """SSEイベント生成 - errorイベント"""
+        result = sse_error("エラーが発生しました")
 
-    @pytest.mark.asyncio
-    async def test_stream_with_heartbeat_success(self):
-        """ハートビート付きストリーミング - 正常系"""
+        assert result.startswith("event: error\n")
+        parsed = json.loads(result.split("data: ")[1].strip())
+        assert parsed == {"success": False, "error_message": "エラーが発生しました"}
 
-        def sync_task(a: int, b: int) -> tuple[str, int, int]:
-            return "結果", a, b
 
-        items = []
-        async for item in stream_with_heartbeat(
-            sync_func=sync_task,
-            sync_func_args=(100, 50),
-            start_message="開始",
-            running_status="processing",
-            running_message="処理中",
-            elapsed_message_template="処理中... {elapsed}秒",
-        ):
-            items.append(item)
+class TestHeartbeatEvents:
+    """heartbeat_events 関数のテスト"""
 
-        # progress(starting) + progress(processing) + result
-        assert len(items) >= 3
-        assert "event: progress" in items[0]
-        assert "開始" in items[0]
-        assert "event: progress" in items[1]
-        assert "処理中" in items[1]
-        # 最後はresultタプル
-        assert items[-1] == ("結果", 100, 50)
+    async def _collect(self, task: asyncio.Future, heartbeat_interval: float = 5) -> list[str]:
+        return [
+            event
+            async for event in heartbeat_events(
+                task,
+                start_message="開始",
+                running_status="processing",
+                running_message="処理中",
+                elapsed_message_template="処理中... {elapsed}秒",
+                heartbeat_interval=heartbeat_interval,
+            )
+        ]
 
-    @pytest.mark.asyncio
-    async def test_stream_with_heartbeat_error(self):
-        """ハートビート付きストリーミング - エラー"""
+    async def test_yields_start_and_running_progress(self):
+        """開始・実行中の progress イベントを生成し、task 完了で終了する"""
+        task = asyncio.create_task(asyncio.to_thread(lambda: ("結果", 100, 50)))
 
-        def sync_task() -> tuple[str, int, int]:
+        events = await self._collect(task)
+
+        assert len(events) == 2
+        assert "event: progress" in events[0]
+        assert '"status": "starting"' in events[0]
+        assert "開始" in events[0]
+        assert '"status": "processing"' in events[1]
+        assert "処理中" in events[1]
+        # 結果はイベントに含めず、呼び出し側が task から受け取る
+        assert task.result() == ("結果", 100, 50)
+
+    async def test_yields_heartbeat_while_task_running(self):
+        """task が完了するまで一定間隔で経過時間付きの progress イベントを生成する"""
+        task = asyncio.create_task(asyncio.sleep(0.1))
+
+        events = await self._collect(task, heartbeat_interval=0.02)
+
+        assert len(events) > 2
+        assert all("event: progress" in event for event in events)
+        assert "処理中... 0秒" in events[2]
+
+    async def test_task_exception_is_left_to_caller(self):
+        """task の例外はイベントにせず、呼び出し側の task.result() で送出される"""
+
+        def failing_task() -> tuple[str, int, int]:
             raise ValueError("テストエラー")
 
-        items = []
-        async for item in stream_with_heartbeat(
-            sync_func=sync_task,
-            sync_func_args=(),
-            start_message="開始",
-            running_status="processing",
-            running_message="処理中",
-            elapsed_message_template="処理中... {elapsed}秒",
-        ):
-            items.append(item)
+        task = asyncio.create_task(asyncio.to_thread(failing_task))
 
-        # progressイベントとerrorイベント
-        assert any("event: error" in str(i) for i in items)
-        error_items = [i for i in items if isinstance(i, str) and "event: error" in i]
-        assert len(error_items) >= 1
-        # 例外詳細はクライアントに返さず定型メッセージのみ
-        assert MESSAGES["ERROR"]["API_ERROR"] in error_items[0]
-        assert "テストエラー" not in error_items[0]
+        events = await self._collect(task)
+
+        assert all("event: progress" in event for event in events)
+        with pytest.raises(ValueError, match="テストエラー"):
+            task.result()

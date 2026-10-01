@@ -4,7 +4,7 @@ from urllib.parse import quote_plus
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from app.core.constants import ModelType
+from app.core.constants import MESSAGES, ModelType
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +48,7 @@ class Settings(BaseSettings):
     evaluation_model: str = ModelType.GEMINI.value
 
     # Application
+    # 以下3つは名前に反してトークン数ではなく入力文字数と比較する（環境変数名の互換性のため改名していない）
     max_input_tokens: int = 300000
     min_input_tokens: int = 100
     max_token_threshold: int = 150000
@@ -84,7 +85,5 @@ class Settings(BaseSettings):
 def get_settings() -> Settings:
     settings = Settings()
     if not settings.csrf_secret_key:
-        raise RuntimeError(
-            "CSRF_SECRET_KEY環境変数が設定されていません。アプリケーションを起動できません。"
-        )
+        raise RuntimeError(MESSAGES["CONFIG"]["CSRF_SECRET_KEY_MISSING"])
     return settings

@@ -1,12 +1,12 @@
-"""統合テスト: エラーハンドリング（AI API障害・ストリーミングエラー）"""
-
-from unittest.mock import MagicMock, patch
+"""統合テスト: エラーハンドリング（AI API障害）"""
 
 from fastapi import status
 
 from app.core.constants import MESSAGES
 from app.models.evaluation_prompt import EvaluationPrompt
-from tests.integration.conftest import parse_sse_events
+from app.models.usage import SummaryUsage
+from app.utils.exceptions import APIError
+from tests.integration.conftest import patch_ai_client, sse_event_data
 
 _VALID_MEDICAL_TEXT = (
     "患者は70歳女性。慢性心不全、2型糖尿病にて長期加療中。"
@@ -20,17 +20,14 @@ _VALID_OUTPUT_SUMMARY = (
 )
 
 
-class TestSyncAPIErrors:
-    def test_ai_api_exception_returns_error_response(
+class TestStreamingErrors:
+    def test_ai_exception_emits_error_event(
         self, integration_client, db_session, csrf_headers
     ):
-        """同期生成でAI APIが例外を投げるとsuccess=Falseレスポンスが返る"""
-        with patch(
-            "app.services.summary_service.generate_summary_with_provider",
-            side_effect=Exception("Bedrock接続エラー"),
-        ):
+        """文書生成でAI APIが例外を投げると定型メッセージのerrorイベントが返る"""
+        with patch_ai_client("summary", error=Exception("Bedrock接続エラー")):
             response = integration_client.post(
-                "/api/summary/generate",
+                "/api/summary/generate-stream",
                 json={
                     "medical_text": _VALID_MEDICAL_TEXT,
                     "model": "Claude",
@@ -40,78 +37,23 @@ class TestSyncAPIErrors:
             )
 
         assert response.status_code == status.HTTP_200_OK
-        data = response.json()
+        data = sse_event_data(response, "error")
         assert data["success"] is False
         assert data["error_message"] == MESSAGES["ERROR"]["API_ERROR"]
         # 例外詳細はクライアントに返さない
-        assert "Bedrock接続エラー" not in data["error_message"]
+        assert "Bedrock接続エラー" not in response.text
+        assert "event: complete" not in response.text
 
-    def test_evaluation_api_exception_returns_error_response(
+        # 失敗した生成は使用量に計上しない
+        db_session.expire_all()
+        assert db_session.query(SummaryUsage).count() == 0
+
+    def test_empty_ai_response_emits_error_event(
         self, integration_client, db_session, csrf_headers
     ):
-        """評価でAI APIが例外を投げるとsuccess=Falseレスポンスが返る"""
-        db_session.add(
-            EvaluationPrompt(
-                document_type="退院時サマリ",
-                content="評価プロンプト",
-                is_active=True,
-            )
-        )
-        db_session.commit()
-
-        mock_instance = MagicMock()
-        mock_instance.initialize.return_value = None
-        mock_instance._generate_content.side_effect = Exception("Gemini API障害")
-        mock_cls = MagicMock(return_value=mock_instance)
-
-        with patch("app.services.evaluation_service.create_client", mock_cls):
-            response = integration_client.post(
-                "/api/evaluation/evaluate",
-                json={
-                    "document_type": "退院時サマリ",
-                    "input_text": "患者情報テキスト",
-                    "current_prescription": "",
-                    "additional_info": "",
-                    "output_summary": _VALID_OUTPUT_SUMMARY,
-                },
-                headers=csrf_headers,
-            )
-
-        assert response.status_code == status.HTTP_200_OK
-        data = response.json()
-        assert data["success"] is False
-        assert data["error_message"] == MESSAGES["ERROR"]["EVALUATION_ERROR"]
-        # 例外詳細はクライアントに返さない
-        assert "Gemini API障害" not in data["error_message"]
-
-    def test_invalid_model_name_returns_error_response(
-        self, integration_client, db_session, csrf_headers
-    ):
-        """サポートされていないモデル名はエラーレスポンスが返る"""
-        response = integration_client.post(
-            "/api/summary/generate",
-            json={
-                "medical_text": _VALID_MEDICAL_TEXT,
-                "model": "UnsupportedModel",
-                "model_explicitly_selected": True,
-            },
-            headers=csrf_headers,
-        )
-
-        assert response.status_code == status.HTTP_200_OK
-        data = response.json()
-        assert data["success"] is False
-        assert data["error_message"] is not None
-
-
-class TestStreamingErrors:
-    def test_ai_exception_during_stream_emits_error_event(
-        self, integration_client, db_session, csrf_headers
-    ):
-        """ストリーミング生成でAI APIが例外を投げるとerror SSEイベントが返る"""
-        with patch(
-            "app.services.summary_service.generate_summary_stream_with_provider",
-            side_effect=Exception("ストリーミングエラー"),
+        """AI APIが空の応答を返した場合 (APIError) もerrorイベントになる"""
+        with patch_ai_client(
+            "summary", error=APIError(MESSAGES["ERROR"]["EMPTY_RESPONSE"])
         ):
             response = integration_client.post(
                 "/api/summary/generate-stream",
@@ -124,15 +66,13 @@ class TestStreamingErrors:
             )
 
         assert response.status_code == status.HTTP_200_OK
-        events = parse_sse_events(response.text)
-        error_events = [e for e in events if e["type"] == "error"]
-        assert len(error_events) > 0
-        assert error_events[0]["data"]["success"] is False
+        data = sse_event_data(response, "error")
+        assert data["error_message"] == MESSAGES["ERROR"]["API_ERROR"]
 
-    def test_evaluation_exception_during_stream_emits_error_event(
+    def test_evaluation_exception_emits_error_event(
         self, integration_client, db_session, csrf_headers
     ):
-        """ストリーミング評価でAI APIが例外を投げるとerror SSEイベントが返る"""
+        """評価でAI APIが例外を投げると定型メッセージのerrorイベントが返る"""
         db_session.add(
             EvaluationPrompt(
                 document_type="退院時サマリ",
@@ -142,12 +82,7 @@ class TestStreamingErrors:
         )
         db_session.commit()
 
-        mock_instance = MagicMock()
-        mock_instance.initialize.return_value = None
-        mock_instance._generate_content.side_effect = Exception("評価APIエラー")
-        mock_cls = MagicMock(return_value=mock_instance)
-
-        with patch("app.services.evaluation_service.create_client", mock_cls):
+        with patch_ai_client("evaluation", error=Exception("Gemini API障害")):
             response = integration_client.post(
                 "/api/evaluation/evaluate-stream",
                 json={
@@ -161,35 +96,27 @@ class TestStreamingErrors:
             )
 
         assert response.status_code == status.HTTP_200_OK
-        events = parse_sse_events(response.text)
-        error_events = [e for e in events if e["type"] == "error"]
-        assert len(error_events) > 0
-        assert error_events[0]["data"]["success"] is False
+        data = sse_event_data(response, "error")
+        assert data["success"] is False
+        assert data["error_message"] == MESSAGES["ERROR"]["EVALUATION_ERROR"]
+        # 例外詳細はクライアントに返さない
+        assert "Gemini API障害" not in response.text
 
-    def test_stream_with_empty_ai_response(
+    def test_invalid_model_name_emits_error_event(
         self, integration_client, db_session, csrf_headers
     ):
-        """AI APIが空のレスポンスを返した場合でも正常にcompleteイベントが返る"""
-
-        def empty_stream():
-            yield {"input_tokens": 0, "output_tokens": 0}
-
-        with patch(
-            "app.services.summary_service.generate_summary_stream_with_provider",
-            return_value=empty_stream(),
-        ):
-            response = integration_client.post(
-                "/api/summary/generate-stream",
-                json={
-                    "medical_text": _VALID_MEDICAL_TEXT,
-                    "model": "Claude",
-                    "model_explicitly_selected": True,
-                },
-                headers=csrf_headers,
-            )
+        """サポートされていないモデル名はerrorイベントが返る"""
+        response = integration_client.post(
+            "/api/summary/generate-stream",
+            json={
+                "medical_text": _VALID_MEDICAL_TEXT,
+                "model": "UnsupportedModel",
+                "model_explicitly_selected": True,
+            },
+            headers=csrf_headers,
+        )
 
         assert response.status_code == status.HTTP_200_OK
-        events = parse_sse_events(response.text)
-        complete_events = [e for e in events if e["type"] == "complete"]
-        assert len(complete_events) > 0
-        assert complete_events[0]["data"]["success"] is True
+        data = sse_event_data(response, "error")
+        assert data["success"] is False
+        assert "UnsupportedModel" in data["error_message"]

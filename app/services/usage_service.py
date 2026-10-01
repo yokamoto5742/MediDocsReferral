@@ -5,12 +5,16 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import func
 
 from app.core.config import get_settings
-from app.core.constants import get_message
+from app.core.constants import USAGE_APP_TYPE, get_message
 from app.core.database import get_db_session
 from app.models.usage import SummaryUsage
 from app.schemas.usage import DailyUsageSummary
 
 JST = ZoneInfo("Asia/Tokyo")
+
+settings = get_settings()
+
+logger = logging.getLogger(__name__)
 
 
 def get_daily_usage() -> DailyUsageSummary:
@@ -19,34 +23,34 @@ def get_daily_usage() -> DailyUsageSummary:
     with get_db_session() as db:
         result = db.query(
             func.count(SummaryUsage.id),
-            func.coalesce(func.sum(SummaryUsage.input_tokens), 0),
-            func.coalesce(func.sum(SummaryUsage.output_tokens), 0),
+            func.sum(SummaryUsage.input_tokens),
+            func.sum(SummaryUsage.output_tokens),
         ).filter(
             SummaryUsage.date >= today_start,
         ).first()
     if result is None:
         return DailyUsageSummary(request_count=0, total_input_tokens=0, total_output_tokens=0)
+    # 当日のレコードが0件の場合、sum は None になる
     return DailyUsageSummary(
         request_count=result[0],
-        total_input_tokens=result[1],
-        total_output_tokens=result[2],
+        total_input_tokens=result[1] or 0,
+        total_output_tokens=result[2] or 0,
     )
 
 
 def check_daily_limit() -> str | None:
     """日次制限を確認し、超過していればエラーメッセージを返す。問題なければNone"""
     try:
-        s = get_settings()
         usage = get_daily_usage()
-        if usage.request_count >= s.daily_request_limit:
-            return get_message("ERROR", "DAILY_REQUEST_LIMIT_EXCEEDED", limit=str(s.daily_request_limit))
-        if usage.total_input_tokens >= s.daily_input_token_limit:
-            return get_message("ERROR", "DAILY_INPUT_TOKEN_LIMIT_EXCEEDED", limit=str(s.daily_input_token_limit))
-        if usage.total_output_tokens >= s.daily_output_token_limit:
-            return get_message("ERROR", "DAILY_OUTPUT_TOKEN_LIMIT_EXCEEDED", limit=str(s.daily_output_token_limit))
+        if usage.request_count >= settings.daily_request_limit:
+            return get_message("ERROR", "DAILY_REQUEST_LIMIT_EXCEEDED", limit=str(settings.daily_request_limit))
+        if usage.total_input_tokens >= settings.daily_input_token_limit:
+            return get_message("ERROR", "DAILY_INPUT_TOKEN_LIMIT_EXCEEDED", limit=str(settings.daily_input_token_limit))
+        if usage.total_output_tokens >= settings.daily_output_token_limit:
+            return get_message("ERROR", "DAILY_OUTPUT_TOKEN_LIMIT_EXCEEDED", limit=str(settings.daily_output_token_limit))
         return None
     except Exception as e:
-        logging.error("日次利用制限チェックに失敗しました: %s", str(e), exc_info=True)
+        logger.error("日次利用制限チェックに失敗しました: %s", str(e), exc_info=True)
         return None  # フェイルオープン: エラー時は実行を許可
 
 
@@ -70,10 +74,10 @@ def save_usage(
                 model=model,
                 input_tokens=input_tokens,
                 output_tokens=output_tokens,
-                app_type="dischargesummary",
+                app_type=USAGE_APP_TYPE,
                 processing_time=processing_time,
             )
             db.add(usage)
     except Exception as e:
         # ログに記録するがエラーは無視
-        logging.error(get_message("ERROR", "USAGE_SAVE_FAILED", error=str(e)), exc_info=True)
+        logger.error(get_message("ERROR", "USAGE_SAVE_FAILED", error=str(e)), exc_info=True)

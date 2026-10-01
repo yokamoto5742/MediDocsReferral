@@ -6,7 +6,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from app.core.config import Settings, get_settings
 from app.core.database import get_db
@@ -92,7 +92,7 @@ def integration_client(integration_db, monkeypatch):
         patch(
             "app.services.evaluation_service.get_db_session", override_get_db_session
         ),
-        patch("app.services.usage_service.get_settings", return_value=test_settings),
+        patch("app.services.usage_service.settings", test_settings),
     ):
         yield TestClient(app)
 
@@ -106,6 +106,36 @@ def csrf_headers(monkeypatch):
     monkeypatch.setenv("CSRF_SECRET_KEY", INTEGRATION_CSRF_SECRET)
     token = generate_csrf_token(make_test_settings())
     return {"X-CSRF-Token": token}
+
+
+@contextmanager
+def patch_ai_client(
+    service: str,
+    result: tuple[str, int, int] = ("生成テキスト", 100, 50),
+    error: Exception | None = None,
+):
+    """
+    service ("summary" / "evaluation") が使う外部AI APIクライアントをモックに差し替える
+
+    文書生成では generate_summary、評価では generate が呼ばれる
+    """
+    mock_client = MagicMock()
+    for method in (mock_client.generate_summary, mock_client.generate):
+        method.return_value = result
+        method.side_effect = error
+    with patch(
+        f"app.services.{service}_service.create_client", return_value=mock_client
+    ):
+        yield mock_client
+
+
+def sse_event_data(response, event_type: str) -> dict:
+    """SSEレスポンスから指定タイプの最初のイベントの data を取得"""
+    events = [
+        e["data"] for e in parse_sse_events(response.text) if e["type"] == event_type
+    ]
+    assert events, f"{event_type} イベントがありません: {response.text}"
+    return events[0]
 
 
 def parse_sse_events(response_text: str) -> list[dict]:

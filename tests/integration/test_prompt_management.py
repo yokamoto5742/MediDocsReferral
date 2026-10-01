@@ -1,9 +1,8 @@
 """統合テスト: プロンプト管理（CRUD + 階層的解決）"""
-from unittest.mock import patch
-
 from fastapi import status
 
 from app.models.prompt import Prompt
+from tests.integration.conftest import patch_ai_client, sse_event_data
 
 _BASE_PROMPT = {
     "department": "内科",
@@ -172,18 +171,9 @@ class TestHierarchicalPromptResolution:
         ))
         db_session.commit()
 
-        captured: dict = {}
-
-        def capture_generate(**kwargs):
-            captured["provider"] = kwargs.get("provider", "")
-            return "生成テキスト", 100, 50
-
-        with patch(
-            "app.services.summary_service.generate_summary_with_provider",
-            side_effect=capture_generate,
-        ):
+        with patch_ai_client("summary") as mock_client:
             response = integration_client.post(
-                "/api/summary/generate",
+                "/api/summary/generate-stream",
                 json={
                     "medical_text": _VALID_MEDICAL_TEXT,
                     "department": "内科",
@@ -196,9 +186,10 @@ class TestHierarchicalPromptResolution:
             )
 
         assert response.status_code == status.HTTP_200_OK
-        data = response.json()
+        data = sse_event_data(response, "complete")
         assert data["success"] is True
         assert data["model_used"] == "Gemini"
+        assert mock_client.generate_summary.call_args[0][1] == "gemini-test-model"
 
 
 class TestEvaluationPromptCRUD:

@@ -1,6 +1,7 @@
 declare module 'alpinejs' {
     interface Alpine {
-        data(name: string, callback: () => any): void;
+        // x-data="name(引数)" の形でテンプレートから引数を渡せる
+        data(name: string, callback: (...args: any[]) => any): void;
         start(): void;
     }
 

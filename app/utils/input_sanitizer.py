@@ -1,5 +1,6 @@
 import re
-from typing import Tuple
+
+from app.core.constants import MESSAGES, get_message
 
 
 # プロンプトインジェクション攻撃のパターン
@@ -28,7 +29,7 @@ PROMPT_INJECTION_PATTERNS = [
 ]
 
 
-def detect_prompt_injection(text: str) -> Tuple[bool, list[str]]:
+def detect_prompt_injection(text: str) -> tuple[bool, list[str]]:
     """
     プロンプトインジェクション攻撃の疑いがあるパターンを検出
 
@@ -39,10 +40,9 @@ def detect_prompt_injection(text: str) -> Tuple[bool, list[str]]:
         return False, []
 
     matched_patterns = []
-    text_lower = text.lower()
 
     for pattern in PROMPT_INJECTION_PATTERNS:
-        if re.search(pattern, text_lower, re.IGNORECASE | re.MULTILINE):
+        if re.search(pattern, text, re.IGNORECASE | re.MULTILINE):
             matched_patterns.append(pattern)
 
     # 異常な繰り返しパターンの検出（同じ文字列が10回以上連続）
@@ -81,22 +81,22 @@ def sanitize_medical_text(text: str) -> str:
     return text
 
 
-def validate_medical_input(
-    text: str, max_input_tokens: int | None = None
-) -> Tuple[bool, str | None]:
+def validate_medical_input(text: str, max_input_chars: int | None = None) -> str | None:
     """
     医療テキスト入力の検証
 
-    プロンプトインジェクション攻撃を検出
+    文字数上限 (max_input_chars 指定時のみ) とプロンプトインジェクション攻撃を検査
 
     Returns:
-        (is_valid, error_message): 有効な場合True、エラーメッセージ
+        問題があればエラーメッセージ、問題なければNone
     """
-    if max_input_tokens is not None and len(text) > max_input_tokens:
-        return False, f"入力テキストが上限（{max_input_tokens}文字）を超えています"
+    if max_input_chars is not None and len(text) > max_input_chars:
+        return get_message(
+            "VALIDATION", "INPUT_LIMIT_EXCEEDED", limit=str(max_input_chars)
+        )
 
     is_suspicious, _ = detect_prompt_injection(text)
     if is_suspicious:
-        return False, "入力テキストに不正なパターンが検出されました"
+        return MESSAGES["VALIDATION"]["SUSPICIOUS_INPUT"]
 
-    return True, None
+    return None

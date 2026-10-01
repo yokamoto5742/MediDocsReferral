@@ -6,8 +6,9 @@ export interface Settings {
     model: string;
 }
 
-// フォームデータ
-export interface FormData {
+// フォームデータ（DOM標準の FormData と衝突しない名前にしている）
+export interface ReferralForm {
+    referralPurpose: string;
     currentPrescription: string;
     medicalText: string;
     additionalInfo: string;
@@ -29,29 +30,64 @@ export interface EvaluationResult {
 }
 
 // APIレスポンス（サーバー側のスキーマに対応）
-export interface SummaryResponse {
-    success: boolean;
-    output_summary?: string;
-    parsed_summary?: Record<string, string>;
-    processing_time?: number;
-    model_used?: string;
-    model_switched?: boolean;
-    error_message?: string;
-}
-
-export interface EvaluationResponse {
-    success: boolean;
-    evaluation_result?: string;
-    processing_time?: number;
-    error_message?: string;
-}
-
 export interface DoctorsResponse {
     doctors: string[];
 }
 
 export interface SelectedModelResponse {
     selected_model: string | null;
+}
+
+export interface PromptListItem {
+    id: number;
+    department: string;
+    document_type: string;
+    doctor: string;
+    selected_model: string | null;
+    is_default: boolean;
+    created_at: string | null;
+    updated_at: string | null;
+}
+
+export interface PromptDetail extends PromptListItem {
+    content: string;
+}
+
+export interface EvaluationPrompt {
+    id: number | null;
+    document_type: string;
+    content: string | null;
+    is_active: boolean;
+    created_at: string | null;
+    updated_at: string | null;
+}
+
+export interface EvaluationPromptSaveResponse {
+    success: boolean;
+    message: string;
+    document_type: string;
+}
+
+export interface AggregatedRecord {
+    document_type: string;
+    department: string;
+    doctor: string;
+    count: number;
+    input_tokens: number;
+    output_tokens: number;
+}
+
+export interface UsageRecord {
+    id: number;
+    date: string | null;
+    app_type: string | null;
+    document_type: string | null;
+    model: string | null;
+    department: string | null;
+    doctor: string | null;
+    input_tokens: number | null;
+    output_tokens: number | null;
+    processing_time: number | null;
 }
 
 // SSEイベント型

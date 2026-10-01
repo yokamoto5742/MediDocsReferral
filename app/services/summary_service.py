@@ -1,16 +1,14 @@
+import asyncio
 import logging
 import time
 from typing import AsyncGenerator
 
 from app.core.config import get_settings
-from app.core.constants import MESSAGES, get_message
-from app.external.api_factory import (
-    generate_summary_with_provider,
-    generate_summary_stream_with_provider,
-)
-from app.schemas.summary import SummaryResponse
-from app.services.model_selector import determine_model, get_provider_and_model
-from app.services.sse_helpers import sse_event, stream_with_heartbeat
+from app.core.constants import MESSAGES
+from app.external.api_factory import create_client
+from app.schemas.summary import SummaryRequest
+from app.services.model_selector import determine_model, get_model_name
+from app.services.sse_helpers import heartbeat_events, sse_error, sse_event
 from app.services.usage_service import check_daily_limit, save_usage
 from app.utils.audit_logger import log_audit_event
 from app.utils.input_sanitizer import sanitize_medical_text, validate_medical_input
@@ -20,396 +18,173 @@ settings = get_settings()
 
 logger = logging.getLogger(__name__)
 
-
-def _error_response(
-    error_msg: str, model: str, model_switched: bool = False
-) -> SummaryResponse:
-    return SummaryResponse(
-        success=False,
-        output_summary="",
-        parsed_summary={},
-        input_tokens=0,
-        output_tokens=0,
-        processing_time=0,
-        model_used=model,
-        model_switched=model_switched,
-        error_message=error_msg,
-    )
+# サニタイズ対象の自由入力欄
+_FREE_TEXT_FIELDS = (
+    "medical_text",
+    "additional_info",
+    "current_prescription",
+    "previous_summary",
+    "evaluation_feedback",
+)
 
 
-def validate_input(medical_text: str) -> tuple[bool, str | None]:
-    """テキスト入力検証（長さチェックとプロンプトインジェクション検出）"""
+def validate_input(medical_text: str) -> str | None:
+    """テキスト入力を検証し、問題があればエラーメッセージを返す。問題なければNone"""
     if not medical_text or not medical_text.strip():
-        return False, MESSAGES["VALIDATION"]["NO_INPUT"]
+        return MESSAGES["VALIDATION"]["NO_INPUT"]
 
+    # min_input_tokens / max_input_tokens は設定名に反して文字数として比較する
     input_length = len(medical_text.strip())
     if input_length < settings.min_input_tokens:
-        return False, MESSAGES["VALIDATION"]["INPUT_TOO_SHORT"]
+        return MESSAGES["VALIDATION"]["INPUT_TOO_SHORT"]
     if input_length > settings.max_input_tokens:
-        return False, MESSAGES["VALIDATION"]["INPUT_TOO_LONG"]
+        return MESSAGES["VALIDATION"]["INPUT_TOO_LONG"]
 
-    # プロンプトインジェクション検出
-    is_valid, error_msg = validate_medical_input(
-        medical_text, settings.max_input_tokens
+    # プロンプトインジェクション検出（文字数上限は上で検査済み）
+    return validate_medical_input(medical_text)
+
+
+def _sanitize_request(request: SummaryRequest) -> SummaryRequest:
+    """自由入力欄をサニタイズしたリクエストを返す"""
+    return request.model_copy(
+        update={
+            field: sanitize_medical_text(getattr(request, field))
+            for field in _FREE_TEXT_FIELDS
+        }
     )
-    if not is_valid:
-        return False, error_msg
-
-    return True, None
 
 
-def execute_summary_generation(
-    medical_text: str,
-    additional_info: str,
-    current_prescription: str,
-    department: str,
-    doctor: str,
-    document_type: str,
-    model: str,
-    referral_purpose: str = "",
-    model_explicitly_selected: bool = False,
-    user_ip: str | None = None,
-    previous_summary: str = "",
-    evaluation_feedback: str = "",
-) -> SummaryResponse:
-    """文書生成を実行"""
-    # 監査ログ: 開始
+def _log_failure(
+    request: SummaryRequest, user_ip: str | None, model: str, error_message: str
+) -> None:
     log_audit_event(
-        event_type=get_message("AUDIT", "DOCUMENT_GENERATION_START"),
+        event_type=MESSAGES["AUDIT"]["DOCUMENT_GENERATION_FAILURE"],
         user_ip=user_ip,
-        document_type=document_type,
+        document_type=request.document_type,
         model=model,
-        department=department,
-        doctor=doctor,
+        success=False,
+        error_message=error_message,
     )
 
-    # 日次利用制限チェック
-    limit_error = check_daily_limit()
-    if limit_error:
-        return _error_response(limit_error, model)
 
-    # サニタイゼーション適用
-    medical_text = sanitize_medical_text(medical_text)
-    additional_info = sanitize_medical_text(additional_info or "")
-    current_prescription = sanitize_medical_text(current_prescription or "")
-    previous_summary = sanitize_medical_text(previous_summary or "")
-    evaluation_feedback = sanitize_medical_text(evaluation_feedback or "")
-
-    # 入力検証
-    is_valid, error_msg = validate_input(medical_text)
-    if not is_valid:
-        log_audit_event(
-            event_type=get_message("AUDIT", "DOCUMENT_GENERATION_FAILURE"),
-            user_ip=user_ip,
-            document_type=document_type,
-            model=model,
-            success=False,
-            error_message=error_msg or MESSAGES["ERROR"]["INPUT_ERROR"],
-        )
-        return _error_response(error_msg or MESSAGES["ERROR"]["INPUT_ERROR"], model)
-
-    # モデル決定
-    total_length = len(medical_text) + len(additional_info or "")
-    try:
-        final_model, model_switched = determine_model(
-            model,
-            total_length,
-            department,
-            document_type,
-            doctor,
-            model_explicitly_selected,
-        )
-    except ValueError as e:
-        log_audit_event(
-            event_type=get_message("AUDIT", "DOCUMENT_GENERATION_FAILURE"),
-            user_ip=user_ip,
-            document_type=document_type,
-            model=model,
-            success=False,
-            error_message=type(e).__name__,
-        )
-        return _error_response(str(e), model)
-
-    # プロバイダーとモデル名を取得
-    try:
-        provider, model_name = get_provider_and_model(final_model)
-    except ValueError as e:
-        log_audit_event(
-            event_type=get_message("AUDIT", "DOCUMENT_GENERATION_FAILURE"),
-            user_ip=user_ip,
-            document_type=document_type,
-            model=final_model,
-            success=False,
-            error_message=type(e).__name__,
-        )
-        return _error_response(str(e), final_model, model_switched)
-
-    start_time = time.time()
-    try:
-        output_summary, input_tokens, output_tokens = generate_summary_with_provider(
-            provider=provider,
-            medical_text=medical_text,
-            additional_info=additional_info,
-            current_prescription=current_prescription,
-            department=department,
-            document_type=document_type,
-            doctor=doctor,
-            model_name=model_name,
-            referral_purpose=referral_purpose,
-            previous_summary=previous_summary,
-            evaluation_feedback=evaluation_feedback,
-        )
-    except Exception as e:
-        # 例外詳細はサーバーログのみに記録（外部APIの例外文字列に入力断片が含まれる可能性があるため）
-        logger.error("文書生成API呼び出しエラー", exc_info=True)
-        log_audit_event(
-            event_type=get_message("AUDIT", "DOCUMENT_GENERATION_FAILURE"),
-            user_ip=user_ip,
-            document_type=document_type,
-            model=final_model,
-            success=False,
-            error_message=type(e).__name__,
-        )
-        return _error_response(
-            MESSAGES["ERROR"]["API_ERROR"], final_model, model_switched
-        )
-
-    processing_time = time.time() - start_time
-
+def _complete_event(
+    request: SummaryRequest,
+    user_ip: str | None,
+    final_model: str,
+    model_switched: bool,
+    generated: tuple[str, int, int],
+    processing_time: float,
+) -> str:
+    """生成結果を整形・記録し、SSEのcompleteイベントを生成"""
+    output_summary, input_tokens, output_tokens = generated
     formatted_summary = format_output_summary(output_summary)
-    parsed_summary = parse_output_summary(formatted_summary)
 
     save_usage(
-        department=department,
-        doctor=doctor,
-        document_type=document_type,
+        department=request.department,
+        doctor=request.doctor,
+        document_type=request.document_type,
         model=final_model,
         input_tokens=input_tokens,
         output_tokens=output_tokens,
         processing_time=processing_time,
     )
-
     log_audit_event(
-        event_type=get_message("AUDIT", "DOCUMENT_GENERATION_SUCCESS"),
+        event_type=MESSAGES["AUDIT"]["DOCUMENT_GENERATION_SUCCESS"],
         user_ip=user_ip,
-        document_type=document_type,
+        document_type=request.document_type,
         model=final_model,
         input_tokens=input_tokens,
         output_tokens=output_tokens,
         processing_time=processing_time,
     )
 
-    return SummaryResponse(
-        success=True,
-        output_summary=formatted_summary,
-        parsed_summary=parsed_summary,
-        input_tokens=input_tokens,
-        output_tokens=output_tokens,
-        processing_time=processing_time,
-        model_used=final_model,
-        model_switched=model_switched,
-    )
-
-
-def _run_sync_generation(
-    provider: str,
-    medical_text: str,
-    additional_info: str,
-    current_prescription: str,
-    department: str,
-    document_type: str,
-    doctor: str,
-    model_name: str,
-    referral_purpose: str = "",
-    previous_summary: str = "",
-    evaluation_feedback: str = "",
-) -> tuple[str, int, int]:
-    """同期ストリーミングジェネレータをスレッドプールで実行"""
-    stream = generate_summary_stream_with_provider(
-        provider=provider,
-        medical_text=medical_text,
-        additional_info=additional_info,
-        current_prescription=current_prescription,
-        department=department,
-        document_type=document_type,
-        doctor=doctor,
-        model_name=model_name,
-        referral_purpose=referral_purpose,
-        previous_summary=previous_summary,
-        evaluation_feedback=evaluation_feedback,
-    )
-    chunks = []
-    metadata = {}
-    for item in stream:
-        if isinstance(item, dict):
-            metadata = item
-        else:
-            chunks.append(item)
-    return (
-        "".join(chunks),
-        metadata.get("input_tokens", 0),
-        metadata.get("output_tokens", 0),
+    return sse_event(
+        "complete",
+        {
+            "success": True,
+            "output_summary": formatted_summary,
+            "parsed_summary": parse_output_summary(formatted_summary),
+            "input_tokens": input_tokens,
+            "output_tokens": output_tokens,
+            "processing_time": processing_time,
+            "model_used": final_model,
+            "model_switched": model_switched,
+        },
     )
 
 
 async def execute_summary_generation_stream(
-    medical_text: str,
-    additional_info: str,
-    current_prescription: str,
-    department: str,
-    doctor: str,
-    document_type: str,
-    model: str,
-    referral_purpose: str = "",
-    model_explicitly_selected: bool = False,
-    user_ip: str | None = None,
-    previous_summary: str = "",
-    evaluation_feedback: str = "",
+    request: SummaryRequest, user_ip: str | None = None
 ) -> AsyncGenerator[str, None]:
     """SSEストリーミングで文書生成を実行"""
-    # 監査ログ: 開始
     log_audit_event(
-        event_type=get_message("AUDIT", "DOCUMENT_GENERATION_START"),
+        event_type=MESSAGES["AUDIT"]["DOCUMENT_GENERATION_START"],
         user_ip=user_ip,
-        document_type=document_type,
-        model=model,
-        department=department,
-        doctor=doctor,
+        document_type=request.document_type,
+        model=request.model,
+        department=request.department,
+        doctor=request.doctor,
     )
 
-    # 日次利用制限チェック
     limit_error = check_daily_limit()
     if limit_error:
-        yield sse_event("error", {"success": False, "error_message": limit_error})
+        yield sse_error(limit_error)
         return
 
-    # サニタイゼーション適用
-    medical_text = sanitize_medical_text(medical_text)
-    additional_info = sanitize_medical_text(additional_info or "")
-    current_prescription = sanitize_medical_text(current_prescription or "")
-    previous_summary = sanitize_medical_text(previous_summary or "")
-    evaluation_feedback = sanitize_medical_text(evaluation_feedback or "")
+    request = _sanitize_request(request)
 
-    # 入力検証
-    is_valid, error_msg = validate_input(medical_text)
-    if not is_valid:
-        log_audit_event(
-            event_type=get_message("AUDIT", "DOCUMENT_GENERATION_FAILURE"),
-            user_ip=user_ip,
-            document_type=document_type,
-            model=model,
-            success=False,
-            error_message=error_msg or MESSAGES["ERROR"]["INPUT_ERROR"],
-        )
-        yield sse_event(
-            "error",
-            {
-                "success": False,
-                "error_message": error_msg or MESSAGES["ERROR"]["INPUT_ERROR"],
-            },
-        )
+    error_msg = validate_input(request.medical_text)
+    if error_msg:
+        _log_failure(request, user_ip, request.model, error_msg)
+        yield sse_error(error_msg)
         return
 
-    # モデル決定
-    total_length = len(medical_text) + len(additional_info or "")
+    total_length = len(request.medical_text) + len(request.additional_info)
     try:
         final_model, model_switched = determine_model(
-            model,
+            request.model,
             total_length,
-            department,
-            document_type,
-            doctor,
-            model_explicitly_selected,
+            request.department,
+            request.document_type,
+            request.doctor,
+            request.model_explicitly_selected,
         )
+        model_name = get_model_name(final_model)
     except ValueError as e:
-        log_audit_event(
-            event_type=get_message("AUDIT", "DOCUMENT_GENERATION_FAILURE"),
-            user_ip=user_ip,
-            document_type=document_type,
-            model=model,
-            success=False,
-            error_message=type(e).__name__,
-        )
-        yield sse_event("error", {"success": False, "error_message": str(e)})
-        return
-
-    # プロバイダーとモデル名を取得
-    try:
-        provider, model_name = get_provider_and_model(final_model)
-    except ValueError as e:
-        log_audit_event(
-            event_type=get_message("AUDIT", "DOCUMENT_GENERATION_FAILURE"),
-            user_ip=user_ip,
-            document_type=document_type,
-            model=final_model,
-            success=False,
-            error_message=type(e).__name__,
-        )
-        yield sse_event("error", {"success": False, "error_message": str(e)})
+        _log_failure(request, user_ip, request.model, type(e).__name__)
+        yield sse_error(str(e))
         return
 
     start_time = time.time()
-
-    async for item in stream_with_heartbeat(
-        sync_func=_run_sync_generation,
-        sync_func_args=(
-            provider,
-            medical_text,
-            additional_info,
-            current_prescription,
-            department,
-            document_type,
-            doctor,
-            model_name,
-            referral_purpose,
-            previous_summary,
-            evaluation_feedback,
-        ),
+    # クライアント生成とAPI呼び出しは同期処理のため、スレッドで実行してイベントループを塞がない
+    task = asyncio.create_task(
+        asyncio.to_thread(
+            lambda: create_client(final_model).generate_summary(request, model_name)
+        )
+    )
+    async for event in heartbeat_events(
+        task,
         start_message=MESSAGES["STATUS"]["DOCUMENT_GENERATION_START"],
         running_status="generating",
         running_message=MESSAGES["STATUS"]["DOCUMENT_GENERATING"],
         elapsed_message_template=MESSAGES["STATUS"]["DOCUMENT_GENERATING_ELAPSED"],
     ):
-        if isinstance(item, str):
-            yield item
-        else:
-            full_text, input_tokens, output_tokens = item
-            processing_time = time.time() - start_time
+        yield event
 
-            formatted_summary = format_output_summary(full_text)
-            parsed_summary = parse_output_summary(formatted_summary)
+    try:
+        generated = task.result()
+    except Exception as e:
+        # 例外詳細はサーバーログのみに記録（外部APIの例外文字列に入力断片が含まれる可能性があるため）
+        logger.error("文書生成API呼び出しエラー", exc_info=True)
+        _log_failure(request, user_ip, final_model, type(e).__name__)
+        yield sse_error(MESSAGES["ERROR"]["API_ERROR"])
+        return
 
-            save_usage(
-                department=department,
-                doctor=doctor,
-                document_type=document_type,
-                model=final_model,
-                input_tokens=input_tokens,
-                output_tokens=output_tokens,
-                processing_time=processing_time,
-            )
-
-            # 監査ログ: 成功
-            log_audit_event(
-                event_type=get_message("AUDIT", "DOCUMENT_GENERATION_SUCCESS"),
-                user_ip=user_ip,
-                document_type=document_type,
-                model=final_model,
-                input_tokens=input_tokens,
-                output_tokens=output_tokens,
-                processing_time=processing_time,
-            )
-
-            yield sse_event(
-                "complete",
-                {
-                    "success": True,
-                    "output_summary": formatted_summary,
-                    "parsed_summary": parsed_summary,
-                    "input_tokens": input_tokens,
-                    "output_tokens": output_tokens,
-                    "processing_time": processing_time,
-                    "model_used": final_model,
-                    "model_switched": model_switched,
-                },
-            )
+    yield _complete_event(
+        request,
+        user_ip,
+        final_model,
+        model_switched,
+        generated,
+        processing_time=time.time() - start_time,
+    )

@@ -1,5 +1,6 @@
 """ClaudeAPIClient のテスト"""
 
+import socket
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -8,192 +9,70 @@ from anthropic.types import TextBlock
 
 from app.core.constants import CLAUDE_GENERATION_TEMPERATURE, MESSAGES
 from app.external.claude_api import ClaudeAPIClient
+from app.schemas.summary import SummaryRequest
 from app.utils.exceptions import APIError
 
 
-def create_mock_settings(**kwargs):
-    """テスト用の設定モックを作成"""
-    mock = MagicMock()
-    mock.aws_access_key_id = kwargs.get("aws_access_key_id", "test_access_key")
-    mock.aws_secret_access_key = kwargs.get("aws_secret_access_key", "test_secret_key")
-    mock.aws_region = kwargs.get("aws_region", "ap-northeast-1")
-    mock.anthropic_model = kwargs.get("anthropic_model", "claude-3-5-sonnet-20241022")
-    return mock
+def create_response(text: str | None, input_tokens: int = 100, output_tokens: int = 50):
+    """テスト用のレスポンスモックを作成（text=None の場合は content が空）"""
+    response = MagicMock()
+    response.content = [] if text is None else [TextBlock(type="text", text=text)]
+    response.stop_reason = "end_turn"
+    response.usage.input_tokens = input_tokens
+    response.usage.output_tokens = output_tokens
+    return response
+
+
+@pytest.fixture
+def mock_bedrock():
+    """AnthropicBedrock と設定をモックし、Bedrock クライアントのモックを返す"""
+    with (
+        patch("app.external.claude_api.get_settings") as mock_get_settings,
+        patch("app.external.claude_api.AnthropicBedrock") as mock_bedrock_class,
+    ):
+        mock_get_settings.return_value.aws_region = "ap-northeast-1"
+        yield mock_bedrock_class
 
 
 class TestClaudeAPIClientInitialization:
     """ClaudeAPIClient 初期化のテスト"""
 
-    @patch("app.external.claude_api.get_settings")
-    def test_init_with_environment_variables(self, mock_get_settings):
-        """初期化 - 設定から値を取得"""
-        mock_get_settings.return_value = create_mock_settings()
-
+    def test_init_creates_bedrock_client(self, mock_bedrock):
+        """初期化 - 設定のリージョンで Bedrock クライアントを生成（認証情報はIAMロール等から解決）"""
         client = ClaudeAPIClient()
 
-        assert client.aws_access_key_id == "test_access_key"
-        assert client.aws_secret_access_key == "test_secret_key"
-        assert client.aws_region == "ap-northeast-1"
-        assert client.anthropic_model == "claude-3-5-sonnet-20241022"
-        assert client.default_model == "claude-3-5-sonnet-20241022"
-        assert client.client is None
+        assert client.client is mock_bedrock.return_value
+        mock_bedrock.assert_called_once_with(aws_region="ap-northeast-1")
 
-    @patch("app.external.claude_api.get_settings")
-    def test_init_without_settings(self, mock_get_settings):
-        """初期化 - 設定値なし"""
-        mock_get_settings.return_value = create_mock_settings(
-            aws_access_key_id=None,
-            aws_secret_access_key=None,
-            aws_region=None,
-            anthropic_model=None,
-        )
-
-        client = ClaudeAPIClient()
-
-        assert client.aws_access_key_id is None
-        assert client.aws_secret_access_key is None
-        assert client.aws_region is None
-        assert client.anthropic_model is None
-
-
-class TestClaudeAPIClientInitialize:
-    """ClaudeAPIClient initialize メソッドのテスト"""
-
-    @patch("app.external.claude_api.AnthropicBedrock")
-    @patch("app.external.claude_api.get_settings")
-    def test_initialize_success(self, mock_get_settings, mock_anthropic_bedrock):
-        """initialize - 正常系"""
-        mock_get_settings.return_value = create_mock_settings(
-            aws_access_key_id="test_key_id",
-            aws_secret_access_key="test_secret",
-            aws_region="us-east-1",
-        )
-        mock_client = MagicMock()
-        mock_anthropic_bedrock.return_value = mock_client
-
-        client = ClaudeAPIClient()
-        result = client.initialize()
-
-        assert result is True
-        assert client.client is mock_client
-
-        mock_anthropic_bedrock.assert_called_once_with(
-            aws_region="us-east-1",
-        )
-
-    @patch("app.external.claude_api.AnthropicBedrock")
-    @patch("app.external.claude_api.get_settings")
-    def test_initialize_missing_region(self, mock_get_settings, mock_anthropic_bedrock):
-        """initialize - AWS_REGION 未設定時、AnthropicBedrockが例外を投げる"""
-        mock_get_settings.return_value = create_mock_settings(
-            aws_region=None,
-        )
-        mock_anthropic_bedrock.side_effect = Exception("region not specified")
-
-        client = ClaudeAPIClient()
+    @pytest.mark.parametrize(
+        "error",
+        [Exception("認証エラー"), ConnectionError("ネットワーク接続エラー")],
+    )
+    def test_init_bedrock_error(self, mock_bedrock, error):
+        """初期化 - AnthropicBedrock の生成に失敗した場合は APIError"""
+        mock_bedrock.side_effect = error
 
         with pytest.raises(APIError) as exc_info:
-            client.initialize()
+            ClaudeAPIClient()
 
         assert "Amazon Bedrock Claude API初期化エラー" in str(exc_info.value)
-
-    @patch("app.external.claude_api.AnthropicBedrock")
-    @patch("app.external.claude_api.get_settings")
-    def test_initialize_missing_anthropic_model(self, mock_get_settings, mock_anthropic_bedrock):
-        """initialize - ANTHROPIC_MODEL 未設定でも initialize() は成功する（モデル検証は generate_summary 内）"""
-        mock_get_settings.return_value = create_mock_settings(
-            anthropic_model=None,
-        )
-        mock_client = MagicMock()
-        mock_anthropic_bedrock.return_value = mock_client
-
-        client = ClaudeAPIClient()
-        result = client.initialize()
-
-        assert result is True
-
-    @patch("app.external.claude_api.AnthropicBedrock")
-    @patch("app.external.claude_api.get_settings")
-    def test_initialize_anthropic_bedrock_error(self, mock_get_settings, mock_anthropic_bedrock):
-        """initialize - AnthropicBedrock 初期化エラー"""
-        mock_get_settings.return_value = create_mock_settings()
-        mock_anthropic_bedrock.side_effect = Exception("認証エラー")
-
-        client = ClaudeAPIClient()
-
-        with pytest.raises(APIError) as exc_info:
-            client.initialize()
-
-        assert "Amazon Bedrock Claude API初期化エラー" in str(exc_info.value)
-        assert "認証エラー" in str(exc_info.value)
-
-    @patch("app.external.claude_api.AnthropicBedrock")
-    @patch("app.external.claude_api.get_settings")
-    def test_initialize_iam_role_mode(self, mock_get_settings, mock_anthropic_bedrock):
-        """initialize - IAMロールモード（アクセスキーなし）"""
-        mock_get_settings.return_value = create_mock_settings(
-            aws_access_key_id=None,
-            aws_secret_access_key=None,
-            aws_region="ap-northeast-1",
-        )
-        mock_client = MagicMock()
-        mock_anthropic_bedrock.return_value = mock_client
-
-        client = ClaudeAPIClient()
-        result = client.initialize()
-
-        assert result is True
-        mock_anthropic_bedrock.assert_called_once_with(
-            aws_region="ap-northeast-1",
-        )
-
-    @patch("app.external.claude_api.AnthropicBedrock")
-    @patch("app.external.claude_api.get_settings")
-    def test_initialize_empty_credentials(self, mock_get_settings, mock_anthropic_bedrock):
-        """initialize - 空の認証情報"""
-        mock_get_settings.return_value = create_mock_settings(
-            aws_access_key_id="",
-            aws_secret_access_key="test_secret",
-        )
-        mock_client = MagicMock()
-        mock_anthropic_bedrock.return_value = mock_client
-
-        client = ClaudeAPIClient()
-        result = client.initialize()
-
-        assert result is True
-        # 空文字列はfalsyなのでIAMロールモードになる
-        mock_anthropic_bedrock.assert_called_once_with(
-            aws_region="ap-northeast-1",
-        )
+        assert str(error) in str(exc_info.value)
 
 
-class TestClaudeAPIClientGenerateContent:
-    """ClaudeAPIClient _generate_content メソッドのテスト"""
+class TestClaudeAPIClientGenerate:
+    """ClaudeAPIClient generate メソッドのテスト"""
 
-    @patch("app.external.claude_api.get_settings")
-    def test_generate_content_success(self, mock_get_settings):
-        """_generate_content - 正常系"""
-        mock_get_settings.return_value = create_mock_settings()
+    def test_generate_success(self, mock_bedrock):
+        """generate - 正常系"""
+        create = mock_bedrock.return_value.messages.create
+        create.return_value = create_response("生成されたサマリー", 1500, 800)
 
-        mock_client = MagicMock()
-        mock_response = MagicMock()
-        mock_response.content = [TextBlock(type="text", text="生成されたサマリー")]
-        mock_response.usage.input_tokens = 1500
-        mock_response.usage.output_tokens = 800
-
-        mock_client.messages.create.return_value = mock_response
-
-        client = ClaudeAPIClient()
-        client.client = mock_client
-
-        result = client._generate_content(
+        result = ClaudeAPIClient().generate(
             prompt="テストプロンプト", model_name="claude-3-5-sonnet-20241022"
         )
 
         assert result == ("生成されたサマリー", 1500, 800)
-
-        mock_client.messages.create.assert_called_once_with(
+        create.assert_called_once_with(
             model="claude-3-5-sonnet-20241022",
             max_tokens=6000,
             system=omit,
@@ -201,420 +80,113 @@ class TestClaudeAPIClientGenerateContent:
             extra_body={"temperature": CLAUDE_GENERATION_TEMPERATURE},
         )
 
-    @patch("app.external.claude_api.get_settings")
-    def test_generate_content_with_system_prompt(self, mock_get_settings):
-        """_generate_content - システムプロンプト指定"""
-        mock_get_settings.return_value = create_mock_settings()
+    def test_generate_with_system_prompt(self, mock_bedrock):
+        """generate - システムプロンプト指定"""
+        create = mock_bedrock.return_value.messages.create
+        create.return_value = create_response("生成されたサマリー")
 
-        mock_client = MagicMock()
-        mock_response = MagicMock()
-        mock_response.content = [TextBlock(type="text", text="生成されたサマリー")]
-        mock_response.stop_reason = "end_turn"
-        mock_response.usage.input_tokens = 1500
-        mock_response.usage.output_tokens = 800
-
-        mock_client.messages.create.return_value = mock_response
-
-        client = ClaudeAPIClient()
-        client.client = mock_client
-
-        client._generate_content(
+        ClaudeAPIClient().generate(
             prompt="ユーザープロンプト",
             model_name="claude-3-5-sonnet-20241022",
             system_prompt="システムプロンプト",
         )
 
-        _, kwargs = mock_client.messages.create.call_args
-        assert kwargs["system"] == "システムプロンプト"
+        assert create.call_args[1]["system"] == "システムプロンプト"
 
-    @patch("app.external.claude_api.get_settings")
-    def test_generate_content_truncated_output(self, mock_get_settings):
-        """_generate_content - max_tokens到達時に警告を付加"""
-        mock_get_settings.return_value = create_mock_settings()
+    def test_generate_truncated_output(self, mock_bedrock):
+        """generate - max_tokens到達時に警告を付加"""
+        response = create_response("途中で切れた文書", 1500, 6000)
+        response.stop_reason = "max_tokens"
+        mock_bedrock.return_value.messages.create.return_value = response
 
-        mock_client = MagicMock()
-        mock_response = MagicMock()
-        mock_response.content = [TextBlock(type="text", text="途中で切れた文書")]
-        mock_response.stop_reason = "max_tokens"
-        mock_response.usage.input_tokens = 1500
-        mock_response.usage.output_tokens = 6000
-
-        mock_client.messages.create.return_value = mock_response
-
-        client = ClaudeAPIClient()
-        client.client = mock_client
-
-        summary_text, _, _ = client._generate_content(
+        summary_text, _, _ = ClaudeAPIClient().generate(
             prompt="テストプロンプト", model_name="claude-3-5-sonnet-20241022"
         )
 
         assert summary_text.startswith("途中で切れた文書")
         assert MESSAGES["WARNING"]["OUTPUT_TRUNCATED"] in summary_text
 
-    @patch("app.external.claude_api.get_settings")
-    def test_generate_content_empty_response(self, mock_get_settings):
-        """_generate_content - 空のレスポンス"""
-        mock_get_settings.return_value = create_mock_settings()
-
-        mock_client = MagicMock()
-        mock_response = MagicMock()
-        mock_response.content = []
-        mock_response.usage.input_tokens = 100
-        mock_response.usage.output_tokens = 0
-
-        mock_client.messages.create.return_value = mock_response
-
-        client = ClaudeAPIClient()
-        client.client = mock_client
-
-        result = client._generate_content(
-            prompt="テストプロンプト", model_name="claude-3-5-sonnet-20241022"
-        )
-
-        assert result == (MESSAGES["ERROR"]["EMPTY_RESPONSE"], 100, 0)
-
-    @patch("app.external.claude_api.get_settings")
-    def test_generate_content_api_error(self, mock_get_settings):
-        """_generate_content - API呼び出しエラー"""
-        mock_get_settings.return_value = create_mock_settings()
-
-        mock_client = MagicMock()
-        mock_client.messages.create.side_effect = Exception("API接続エラー")
-
-        client = ClaudeAPIClient()
-        client.client = mock_client
+    def test_generate_empty_response(self, mock_bedrock):
+        """generate - content が空の応答は成功扱いにせず APIError"""
+        mock_bedrock.return_value.messages.create.return_value = create_response(None)
 
         with pytest.raises(APIError) as exc_info:
-            client._generate_content(
-                prompt="テストプロンプト", model_name="claude-3-5-sonnet-20241022"
-            )
+            ClaudeAPIClient().generate(prompt="テスト", model_name="test-model")
+
+        assert str(exc_info.value) == MESSAGES["ERROR"]["EMPTY_RESPONSE"]
+
+    def test_generate_no_text_block(self, mock_bedrock):
+        """generate - TextBlock 以外のブロックのみの応答は APIError"""
+        response = create_response(None)
+        response.content = [MagicMock(spec=[])]
+        mock_bedrock.return_value.messages.create.return_value = response
+
+        with pytest.raises(APIError) as exc_info:
+            ClaudeAPIClient().generate(prompt="テスト", model_name="test-model")
+
+        assert str(exc_info.value) == MESSAGES["ERROR"]["EMPTY_RESPONSE"]
+
+    @pytest.mark.parametrize(
+        "error",
+        [
+            Exception("API接続エラー"),
+            socket.timeout("接続タイムアウト"),
+            ConnectionResetError("接続がリセットされました"),
+            Exception("503 Service Unavailable"),
+            Exception("rate limit exceeded"),
+        ],
+    )
+    def test_generate_api_error(self, mock_bedrock, error):
+        """generate - API呼び出しの例外は APIError にラップされる"""
+        mock_bedrock.return_value.messages.create.side_effect = error
+
+        with pytest.raises(APIError) as exc_info:
+            ClaudeAPIClient().generate(prompt="テストプロンプト", model_name="test-model")
 
         error_message = str(exc_info.value)
-        assert "API接続エラー" in error_message
         assert "Amazon Bedrock Claude API呼び出しエラー" in error_message
+        assert str(error) in error_message
+        assert exc_info.value.__cause__ is error
 
-    @patch("app.external.claude_api.get_settings")
-    def test_generate_content_uses_model_name_param(self, mock_get_settings):
-        """_generate_content - 渡された model_name パラメータを使用"""
-        mock_get_settings.return_value = create_mock_settings()
+    @pytest.mark.parametrize(
+        "prompt",
+        ["あ" * 100000, "特殊文字: \n\t\r\n!@#$%^&*(){}[]<>?/\\|`~"],
+        ids=["long", "special_characters"],
+    )
+    def test_generate_passes_prompt_as_is(self, mock_bedrock, prompt):
+        """generate - 長文や特殊文字を含むプロンプトをそのまま渡す"""
+        create = mock_bedrock.return_value.messages.create
+        create.return_value = create_response("結果")
 
-        mock_client = MagicMock()
-        mock_response = MagicMock()
-        mock_response.content = [TextBlock(type="text", text="テキスト")]
-        mock_response.usage.input_tokens = 100
-        mock_response.usage.output_tokens = 50
+        result = ClaudeAPIClient().generate(prompt=prompt, model_name="test-model")
 
-        mock_client.messages.create.return_value = mock_response
-
-        client = ClaudeAPIClient()
-        client.client = mock_client
-
-        test_model = "different-model-name"
-        client._generate_content(
-            prompt="プロンプト", model_name=test_model
-        )
-
-        call_args = mock_client.messages.create.call_args
-        assert call_args[1]["model"] == test_model
-
-    @patch("app.external.claude_api.get_settings")
-    def test_generate_content_max_tokens_6000(self, mock_get_settings):
-        """_generate_content - max_tokens が 6000 に設定"""
-        mock_get_settings.return_value = create_mock_settings()
-
-        mock_client = MagicMock()
-        mock_response = MagicMock()
-        mock_response.content = [TextBlock(type="text", text="テキスト")]
-        mock_response.usage.input_tokens = 100
-        mock_response.usage.output_tokens = 50
-
-        mock_client.messages.create.return_value = mock_response
-
-        client = ClaudeAPIClient()
-        client.client = mock_client
-
-        client._generate_content(prompt="プロンプト", model_name="test-model")
-
-        call_args = mock_client.messages.create.call_args
-        assert call_args[1]["max_tokens"] == 6000
-
-    @patch("app.external.claude_api.get_settings")
-    def test_generate_content_message_format(self, mock_get_settings):
-        """_generate_content - メッセージフォーマット確認"""
-        mock_get_settings.return_value = create_mock_settings()
-
-        mock_client = MagicMock()
-        mock_response = MagicMock()
-        mock_response.content = [TextBlock(type="text", text="結果")]
-        mock_response.usage.input_tokens = 200
-        mock_response.usage.output_tokens = 100
-
-        mock_client.messages.create.return_value = mock_response
-
-        client = ClaudeAPIClient()
-        client.client = mock_client
-
-        test_prompt = "これはテストプロンプトです"
-        client._generate_content(prompt=test_prompt, model_name="test-model")
-
-        call_args = mock_client.messages.create.call_args
-        messages = call_args[1]["messages"]
-        assert len(messages) == 1
-        assert messages[0]["role"] == "user"
-        assert messages[0]["content"] == test_prompt
-
-    @patch("app.external.claude_api.get_settings")
-    def test_generate_content_client_not_initialized(self, mock_get_settings):
-        """_generate_content - クライアント未初期化"""
-        mock_get_settings.return_value = create_mock_settings()
-
-        client = ClaudeAPIClient()
-
-        with pytest.raises(APIError) as exc_info:
-            client._generate_content(prompt="プロンプト", model_name="test-model")
-
-        assert "Claude" in str(exc_info.value)
+        assert result[0] == "結果"
+        assert create.call_args[1]["messages"] == [{"role": "user", "content": prompt}]
 
 
 class TestClaudeAPIClientIntegration:
     """ClaudeAPIClient 統合テスト"""
 
-    @patch("app.external.claude_api.AnthropicBedrock")
-    @patch("app.external.base_api.get_prompt")
+    @patch("app.external.base_api.get_prompt", return_value=None)
     @patch("app.external.base_api.get_db_session")
-    @patch("app.external.claude_api.get_settings")
     def test_full_generate_summary_flow(
-        self, mock_get_settings, mock_db_session, mock_get_prompt, mock_anthropic_bedrock
+        self, _mock_db_session, _mock_get_prompt, mock_bedrock
     ):
         """完全な文書生成フロー"""
-        mock_get_settings.return_value = create_mock_settings()
+        create = mock_bedrock.return_value.messages.create
+        create.return_value = create_response("生成された診療情報提供書", 2000, 1000)
 
-        mock_db = MagicMock()
-        mock_db_session.return_value.__enter__.return_value = mock_db
-        mock_get_prompt.return_value = None
-
-        mock_bedrock_client = MagicMock()
-        mock_response = MagicMock()
-        mock_response.content = [TextBlock(type="text", text="生成された診療情報提供書")]
-        mock_response.usage.input_tokens = 2000
-        mock_response.usage.output_tokens = 1000
-
-        mock_bedrock_client.messages.create.return_value = mock_response
-        mock_anthropic_bedrock.return_value = mock_bedrock_client
-
-        client = ClaudeAPIClient()
-        result = client.generate_summary(
-            medical_text="患者情報",
-            additional_info="追加情報",
-            current_prescription="処方内容",
-            document_type="他院への紹介",
-            model_name="claude-3-5-sonnet-20241022",
+        result = ClaudeAPIClient().generate_summary(
+            SummaryRequest(
+                medical_text="患者情報",
+                additional_info="追加情報",
+                current_prescription="処方内容",
+                document_type="他院への紹介",
+            ),
+            "claude-3-5-sonnet-20241022",
         )
 
         assert result == ("生成された診療情報提供書", 2000, 1000)
-
-    @patch("app.external.claude_api.AnthropicBedrock")
-    @patch("app.external.claude_api.get_settings")
-    def test_generate_summary_initialization_error(self, mock_get_settings, mock_anthropic_bedrock):
-        """generate_summary - 初期化エラー"""
-        mock_get_settings.return_value = create_mock_settings(
-            aws_region=None,
-        )
-        mock_anthropic_bedrock.side_effect = Exception("init error")
-
-        client = ClaudeAPIClient()
-
-        with pytest.raises(APIError) as exc_info:
-            client.generate_summary(medical_text="データ")
-
-        assert "Amazon Bedrock Claude API初期化エラー" in str(exc_info.value)
-
-
-class TestClaudeAPIClientEdgeCases:
-    """ClaudeAPIClient エッジケース"""
-
-    @patch("app.external.claude_api.get_settings")
-    def test_generate_content_very_long_prompt(self, mock_get_settings):
-        """_generate_content - 非常に長いプロンプト"""
-        mock_get_settings.return_value = create_mock_settings()
-
-        mock_client = MagicMock()
-        mock_response = MagicMock()
-        mock_response.content = [TextBlock(type="text", text="サマリー")]
-        mock_response.usage.input_tokens = 50000
-        mock_response.usage.output_tokens = 1000
-
-        mock_client.messages.create.return_value = mock_response
-
-        client = ClaudeAPIClient()
-        client.client = mock_client
-
-        long_prompt = "あ" * 100000
-        result = client._generate_content(prompt=long_prompt, model_name="test-model")
-
-        assert result == ("サマリー", 50000, 1000)
-
-    @patch("app.external.claude_api.get_settings")
-    def test_generate_content_special_characters_in_prompt(self, mock_get_settings):
-        """_generate_content - 特殊文字を含むプロンプト"""
-        mock_get_settings.return_value = create_mock_settings()
-
-        mock_client = MagicMock()
-        mock_response = MagicMock()
-        mock_response.content = [TextBlock(type="text", text="結果")]
-        mock_response.usage.input_tokens = 100
-        mock_response.usage.output_tokens = 50
-
-        mock_client.messages.create.return_value = mock_response
-
-        client = ClaudeAPIClient()
-        client.client = mock_client
-
-        special_prompt = "特殊文字: \n\t\r\n!@#$%^&*(){}[]<>?/\\|`~"
-        result = client._generate_content(
-            prompt=special_prompt, model_name="test-model"
-        )
-
-        assert result[0] == "結果"
-
-    @patch("app.external.claude_api.AnthropicBedrock")
-    @patch("app.external.claude_api.get_settings")
-    def test_initialize_whitespace_only_credentials(self, mock_get_settings, mock_anthropic_bedrock):
-        """initialize - 空白のみの認証情報"""
-        mock_get_settings.return_value = create_mock_settings(
-            aws_access_key_id="   ",
-            aws_secret_access_key="test_secret",
-        )
-        mock_anthropic_bedrock.side_effect = Exception("無効な認証情報")
-
-        client = ClaudeAPIClient()
-
-        with pytest.raises(APIError) as exc_info:
-            client.initialize()
-
-        assert "Amazon Bedrock Claude API初期化エラー" in str(exc_info.value)
-
-
-class TestClaudeAPIClientNetworkErrors:
-    """ClaudeAPIClient ネットワークエラーシナリオのテスト"""
-
-    @patch("app.external.claude_api.get_settings")
-    def test_generate_content_connection_timeout(self, mock_get_settings):
-        """接続タイムアウト時に APIError を発生させること"""
-        import socket
-        mock_get_settings.return_value = create_mock_settings()
-
-        mock_client = MagicMock()
-        mock_client.messages.create.side_effect = socket.timeout("接続タイムアウト")
-
-        client = ClaudeAPIClient()
-        client.client = mock_client
-
-        with pytest.raises(APIError) as exc_info:
-            client._generate_content(prompt="テストプロンプト", model_name="test-model")
-
-        assert "Amazon Bedrock Claude API呼び出しエラー" in str(exc_info.value)
-
-    @patch("app.external.claude_api.get_settings")
-    def test_generate_content_connection_reset(self, mock_get_settings):
-        """接続リセット時に APIError を発生させること"""
-        mock_get_settings.return_value = create_mock_settings()
-
-        mock_client = MagicMock()
-        mock_client.messages.create.side_effect = ConnectionResetError("接続がリセットされました")
-
-        client = ClaudeAPIClient()
-        client.client = mock_client
-
-        with pytest.raises(APIError) as exc_info:
-            client._generate_content(prompt="テストプロンプト", model_name="test-model")
-
-        assert "Amazon Bedrock Claude API呼び出しエラー" in str(exc_info.value)
-
-    @patch("app.external.claude_api.get_settings")
-    def test_generate_content_service_unavailable(self, mock_get_settings):
-        """503 Service Unavailable 相当エラー時に APIError を発生させること"""
-        mock_get_settings.return_value = create_mock_settings()
-
-        mock_client = MagicMock()
-        mock_client.messages.create.side_effect = Exception("503 Service Unavailable")
-
-        client = ClaudeAPIClient()
-        client.client = mock_client
-
-        with pytest.raises(APIError) as exc_info:
-            client._generate_content(prompt="テストプロンプト", model_name="test-model")
-
-        assert "Amazon Bedrock Claude API呼び出しエラー" in str(exc_info.value)
-        assert "503" in str(exc_info.value)
-
-    @patch("app.external.claude_api.get_settings")
-    def test_generate_content_rate_limit_error(self, mock_get_settings):
-        """レート制限エラー時に APIError を発生させること"""
-        mock_get_settings.return_value = create_mock_settings()
-
-        mock_client = MagicMock()
-        mock_client.messages.create.side_effect = Exception("rate limit exceeded")
-
-        client = ClaudeAPIClient()
-        client.client = mock_client
-
-        with pytest.raises(APIError):
-            client._generate_content(prompt="テストプロンプト", model_name="test-model")
-
-    @patch("app.external.claude_api.get_settings")
-    def test_generate_content_empty_content_list(self, mock_get_settings):
-        """レスポンスの content が空リスト時にデフォルトメッセージを返すこと"""
-        mock_get_settings.return_value = create_mock_settings()
-
-        mock_client = MagicMock()
-        mock_response = MagicMock()
-        mock_response.content = []
-        mock_response.usage.input_tokens = 10
-        mock_response.usage.output_tokens = 5
-
-        mock_client.messages.create.return_value = mock_response
-
-        client = ClaudeAPIClient()
-        client.client = mock_client
-
-        result_text, _, _ = client._generate_content(prompt="テスト", model_name="test-model")
-
-        assert result_text == MESSAGES["ERROR"]["EMPTY_RESPONSE"]
-
-    @patch("app.external.claude_api.get_settings")
-    def test_generate_content_no_text_block(self, mock_get_settings):
-        """TextBlock 以外のコンテンツブロックのみの場合にデフォルトメッセージを返すこと"""
-        mock_get_settings.return_value = create_mock_settings()
-
-        mock_client = MagicMock()
-        mock_response = MagicMock()
-
-        # TextBlock でないブロック
-        non_text_block = MagicMock(spec=[])
-        mock_response.content = [non_text_block]
-        mock_response.usage.input_tokens = 10
-        mock_response.usage.output_tokens = 5
-
-        mock_client.messages.create.return_value = mock_response
-
-        client = ClaudeAPIClient()
-        client.client = mock_client
-
-        result_text, _, _ = client._generate_content(prompt="テスト", model_name="test-model")
-
-        assert result_text == MESSAGES["ERROR"]["EMPTY_RESPONSE"]
-
-    @patch("app.external.claude_api.AnthropicBedrock")
-    @patch("app.external.claude_api.get_settings")
-    def test_initialize_network_error(self, mock_get_settings, mock_bedrock):
-        """ネットワークエラー時の initialize が APIError を発生させること"""
-        mock_get_settings.return_value = create_mock_settings()
-        mock_bedrock.side_effect = ConnectionError("ネットワーク接続エラー")
-
-        client = ClaudeAPIClient()
-
-        with pytest.raises(APIError) as exc_info:
-            client.initialize()
-
-        assert "Amazon Bedrock Claude API初期化エラー" in str(exc_info.value)
+        call_kwargs = create.call_args[1]
+        assert call_kwargs["model"] == "claude-3-5-sonnet-20241022"
+        assert "患者情報" in call_kwargs["messages"][0]["content"]
