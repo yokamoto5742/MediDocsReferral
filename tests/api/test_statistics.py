@@ -41,6 +41,39 @@ def test_get_summary_filtered_by_date(client, sample_usage_records):
     assert response.status_code == status.HTTP_200_OK
 
 
+def test_get_aggregated_csv_empty(client, test_db):
+    """集計統計CSV出力 - データなしはヘッダー行のみ"""
+    response = client.get("/api/statistics/aggregated/csv")
+    assert response.status_code == status.HTTP_200_OK
+    assert response.content.decode("utf-8-sig").splitlines() == [
+        "文書名,診療科,医師名,作成件数,入力トークン,出力トークン"
+    ]
+
+
+def test_get_aggregated_csv_with_data(client, sample_usage_records):
+    """集計統計CSV出力 - BOM付きUTF-8の添付ファイルとして返る"""
+    response = client.get("/api/statistics/aggregated/csv")
+    assert response.status_code == status.HTTP_200_OK
+    assert response.headers["content-type"] == "text/csv; charset=utf-8"
+    disposition = response.headers["content-disposition"]
+    assert disposition.startswith('attachment; filename="aggregated_statistics_')
+    assert disposition.endswith('.csv"')
+    assert response.content.startswith(b"\xef\xbb\xbf")
+
+    lines = response.content.decode("utf-8-sig").splitlines()
+    assert len(lines) == 3
+    assert "他院への紹介,眼科,橋本義弘,1,1000,500" in lines
+    assert "返書,全科共通,医師共通,1,2000,800" in lines
+
+
+def test_get_aggregated_csv_filtered_by_model(client, sample_usage_records):
+    """集計統計CSV出力 - モデルフィルター"""
+    response = client.get("/api/statistics/aggregated/csv?model=Claude")
+    assert response.status_code == status.HTTP_200_OK
+    lines = response.content.decode("utf-8-sig").splitlines()
+    assert lines[1:] == ["他院への紹介,眼科,橋本義弘,1,1000,500"]
+
+
 def test_get_records_empty(client, test_db):
     """使用統計レコード取得 - データなし"""
     response = client.get("/api/statistics/records")

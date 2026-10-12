@@ -215,3 +215,53 @@ class TestGetAggregatedRecords:
         results = statistics_service.get_aggregated_records(test_db, model="Claude")
         assert results[0]["input_tokens"] == 1000
         assert results[0]["output_tokens"] == 500
+
+
+class TestBuildAggregatedCsv:
+    """build_aggregated_csv 関数のテスト"""
+
+    HEADER = "文書名,診療科,医師名,作成件数,入力トークン,出力トークン"
+
+    def test_empty_returns_header_only(self):
+        """データなし: ヘッダー行のみ"""
+        csv_text = statistics_service.build_aggregated_csv([])
+        assert csv_text.splitlines() == [self.HEADER]
+
+    def test_rows_follow_column_order(self):
+        """データあり: 画面と同じ列順で出力される"""
+        records = [
+            {
+                "document_type": "返書",
+                "department": "眼科",
+                "doctor": "橋本義弘",
+                "count": 3,
+                "input_tokens": 12000,
+                "output_tokens": 4500,
+            }
+        ]
+        csv_text = statistics_service.build_aggregated_csv(records)
+        assert csv_text.splitlines() == [self.HEADER, "返書,眼科,橋本義弘,3,12000,4500"]
+
+    def test_value_with_comma_is_quoted(self):
+        """カンマを含む値はダブルクォートで囲まれる"""
+        records = [
+            {
+                "document_type": "返書",
+                "department": "眼科,内科",
+                "doctor": "医師共通",
+                "count": 1,
+                "input_tokens": 0,
+                "output_tokens": 0,
+            }
+        ]
+        csv_text = statistics_service.build_aggregated_csv(records)
+        assert csv_text.splitlines()[1] == '返書,"眼科,内科",医師共通,1,0,0'
+
+
+def test_get_aggregated_csv_filename():
+    """ファイル名に出力日 (JST) が含まれる"""
+    today = datetime.now(JST).strftime("%Y%m%d")
+    assert (
+        statistics_service.get_aggregated_csv_filename()
+        == f"aggregated_statistics_{today}.csv"
+    )

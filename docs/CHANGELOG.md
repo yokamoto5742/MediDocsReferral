@@ -2,6 +2,14 @@
 
 このプロジェクトの変更履歴は[Keep a Changelog](https://keepachangelog.com/ja/1.1.0/)の仕様に従い、[セマンティック バージョニング](https://semver.org/lang/ja/)を採用しています。
 
+## [1.3.0] - 2026-10-12
+
+### 追加
+
+- **集計統計のCSV出力**: 統計情報画面の集計統計に「CSV出力」ボタンを追加。現在の絞り込み条件（期間・AIモデル・文書名）で集計した6列を、BOM付きUTF-8のCSVファイルとしてダウンロードできる（`GET /api/statistics/aggregated/csv`）
+
+---
+
 ## [1.2.1] - 2026-10-01
 
 ### 変更

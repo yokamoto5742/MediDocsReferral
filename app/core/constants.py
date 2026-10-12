@@ -16,6 +16,16 @@ DOCUMENT_TYPES = ["他院への紹介", "紹介元への逆紹介", "返書", "�
 
 # 統計情報
 DEFAULT_STATISTICS_PERIOD_DAYS = 7
+# 集計統計CSVの列 (集計レコードのキー → ヘッダー名)
+AGGREGATED_CSV_COLUMNS = {
+    "document_type": "文書名",
+    "department": "診療科",
+    "doctor": "医師名",
+    "count": "作成件数",
+    "input_tokens": "入力トークン",
+    "output_tokens": "出力トークン",
+}
+AGGREGATED_CSV_FILENAME = "aggregated_statistics_{date}.csv"
 # 使用統計 (summary_usage.app_type) に記録するアプリ種別
 USAGE_APP_TYPE = "referral_letter"
 

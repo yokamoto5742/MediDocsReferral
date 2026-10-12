@@ -59,6 +59,11 @@ export function statisticsPage() {
             return params;
         },
 
+        // 現在の絞り込み条件で集計統計CSVをダウンロードするURL
+        aggregatedCsvUrl(): string {
+            return `/api/statistics/aggregated/csv?${this.buildFilterParams()}`;
+        },
+
         async loadAggregatedData() {
             this.isLoadingAggregated = true;
             this.error = null;

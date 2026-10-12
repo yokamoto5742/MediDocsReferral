@@ -1,10 +1,17 @@
+import csv
+import io
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import desc, func
 from sqlalchemy.orm import Query, Session
 
-from app.core.constants import DEFAULT_STATISTICS_PERIOD_DAYS, MESSAGES
+from app.core.constants import (
+    AGGREGATED_CSV_COLUMNS,
+    AGGREGATED_CSV_FILENAME,
+    DEFAULT_STATISTICS_PERIOD_DAYS,
+    MESSAGES,
+)
 from app.models.usage import SummaryUsage
 
 JST = ZoneInfo("Asia/Tokyo")
@@ -108,6 +115,21 @@ def get_aggregated_records(
         }
         for r in results
     ]
+
+
+def build_aggregated_csv(records: list[dict]) -> str:
+    """集計統計データをヘッダー行付きのCSV文字列に変換"""
+    buffer = io.StringIO()
+    writer = csv.writer(buffer)
+    writer.writerow(AGGREGATED_CSV_COLUMNS.values())
+    for record in records:
+        writer.writerow(record[key] for key in AGGREGATED_CSV_COLUMNS)
+    return buffer.getvalue()
+
+
+def get_aggregated_csv_filename() -> str:
+    """出力日 (JST) を含む集計統計CSVのファイル名を返す"""
+    return AGGREGATED_CSV_FILENAME.format(date=datetime.now(JST).strftime("%Y%m%d"))
 
 
 def get_usage_records(
