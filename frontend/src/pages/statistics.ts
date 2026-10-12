@@ -64,6 +64,11 @@ export function statisticsPage() {
             return `/api/statistics/aggregated/csv?${this.buildFilterParams()}`;
         },
 
+        // 現在の絞り込み条件で使用履歴CSV (全件) をダウンロードするURL
+        recordsCsvUrl(): string {
+            return `/api/statistics/records/csv?${this.buildFilterParams()}`;
+        },
+
         async loadAggregatedData() {
             this.isLoadingAggregated = true;
             this.error = null;

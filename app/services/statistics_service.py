@@ -11,6 +11,9 @@ from app.core.constants import (
     AGGREGATED_CSV_FILENAME,
     DEFAULT_STATISTICS_PERIOD_DAYS,
     MESSAGES,
+    USAGE_HISTORY_CSV_COLUMNS,
+    USAGE_HISTORY_CSV_DATE_FORMAT,
+    USAGE_HISTORY_CSV_FILENAME,
 )
 from app.models.usage import SummaryUsage
 
@@ -117,19 +120,62 @@ def get_aggregated_records(
     ]
 
 
-def build_aggregated_csv(records: list[dict]) -> str:
-    """集計統計データをヘッダー行付きのCSV文字列に変換"""
+def _build_csv(columns: dict[str, str], rows: list[dict]) -> str:
+    """行データを列定義 (キー → ヘッダー名) の順でヘッダー行付きのCSV文字列に変換"""
     buffer = io.StringIO()
     writer = csv.writer(buffer)
-    writer.writerow(AGGREGATED_CSV_COLUMNS.values())
-    for record in records:
-        writer.writerow(record[key] for key in AGGREGATED_CSV_COLUMNS)
+    writer.writerow(columns.values())
+    for row in rows:
+        writer.writerow(row[key] for key in columns)
     return buffer.getvalue()
+
+
+def _csv_filename(filename_template: str) -> str:
+    """出力日 (JST) を埋め込んだCSVのファイル名を返す"""
+    return filename_template.format(date=datetime.now(JST).strftime("%Y%m%d"))
+
+
+def build_aggregated_csv(records: list[dict]) -> str:
+    """集計統計データをヘッダー行付きのCSV文字列に変換"""
+    return _build_csv(AGGREGATED_CSV_COLUMNS, records)
 
 
 def get_aggregated_csv_filename() -> str:
     """出力日 (JST) を含む集計統計CSVのファイル名を返す"""
-    return AGGREGATED_CSV_FILENAME.format(date=datetime.now(JST).strftime("%Y%m%d"))
+    return _csv_filename(AGGREGATED_CSV_FILENAME)
+
+
+def _usage_history_row(record: SummaryUsage) -> dict:
+    """使用履歴レコードを画面表示と同じ値のCSV行に変換"""
+    return {
+        "date": (
+            record.date.astimezone(JST).strftime(USAGE_HISTORY_CSV_DATE_FORMAT)
+            if record.date
+            else "-"
+        ),
+        "document_type": record.document_type or "-",
+        "department": _label(
+            record.department, MESSAGES["INFO"]["DEFAULT_DEPARTMENT_LABEL"]
+        ),
+        "doctor": _label(record.doctor, MESSAGES["INFO"]["DEFAULT_DOCTOR_LABEL"]),
+        "model": record.model or "-",
+        "input_tokens": record.input_tokens or 0,
+        "output_tokens": record.output_tokens or 0,
+        # round() は偶数丸めのため、画面 (toFixed(0)) と同じ四捨五入にする
+        "processing_time": int((record.processing_time or 0) + 0.5),
+    }
+
+
+def build_usage_history_csv(records: list[SummaryUsage]) -> str:
+    """使用履歴データをヘッダー行付きのCSV文字列に変換"""
+    return _build_csv(
+        USAGE_HISTORY_CSV_COLUMNS, [_usage_history_row(record) for record in records]
+    )
+
+
+def get_usage_history_csv_filename() -> str:
+    """出力日 (JST) を含む使用履歴CSVのファイル名を返す"""
+    return _csv_filename(USAGE_HISTORY_CSV_FILENAME)
 
 
 def get_usage_records(
@@ -138,10 +184,10 @@ def get_usage_records(
     end_date: datetime | None = None,
     model: str | None = None,
     document_type: str | None = None,
-    limit: int = 100,
+    limit: int | None = 100,
     offset: int = 0,
 ) -> list[SummaryUsage]:
-    """使用統計レコードを取得"""
+    """使用統計レコードを取得 (limit=None で全件)"""
     query = _apply_filters(
         db.query(SummaryUsage), start_date, end_date, model, document_type
     )

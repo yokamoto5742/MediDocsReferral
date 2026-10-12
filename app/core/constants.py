@@ -26,6 +26,19 @@ AGGREGATED_CSV_COLUMNS = {
     "output_tokens": "出力トークン",
 }
 AGGREGATED_CSV_FILENAME = "aggregated_statistics_{date}.csv"
+# 使用履歴CSVの列 (行のキー → ヘッダー名)
+USAGE_HISTORY_CSV_COLUMNS = {
+    "date": "作成日",
+    "document_type": "文書名",
+    "department": "診療科",
+    "doctor": "医師名",
+    "model": "AIモデル",
+    "input_tokens": "入力トークン",
+    "output_tokens": "出力トークン",
+    "processing_time": "作成時間(秒)",
+}
+USAGE_HISTORY_CSV_FILENAME = "usage_history_{date}.csv"
+USAGE_HISTORY_CSV_DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 # 使用統計 (summary_usage.app_type) に記録するアプリ種別
 USAGE_APP_TYPE = "referral_letter"
 

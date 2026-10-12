@@ -265,3 +265,64 @@ def test_get_aggregated_csv_filename():
         statistics_service.get_aggregated_csv_filename()
         == f"aggregated_statistics_{today}.csv"
     )
+
+
+class TestBuildUsageHistoryCsv:
+    """build_usage_history_csv 関数のテスト"""
+
+    HEADER = (
+        "作成日,文書名,診療科,医師名,AIモデル,入力トークン,出力トークン,作成時間(秒)"
+    )
+
+    def test_empty_returns_header_only(self):
+        """データなし: ヘッダー行のみ"""
+        csv_text = statistics_service.build_usage_history_csv([])
+        assert csv_text.splitlines() == [self.HEADER]
+
+    def test_date_is_converted_to_jst(self):
+        """作成日は JST の秒までの形式に変換される"""
+        record = SummaryUsage(
+            date=datetime(2026, 10, 12, 3, 59, 51, tzinfo=ZoneInfo("UTC")),
+            document_type="返書",
+            department="眼科",
+            doctor="橋本義弘",
+            model="Claude",
+            input_tokens=12000,
+            output_tokens=4500,
+            processing_time=12.4,
+        )
+        csv_text = statistics_service.build_usage_history_csv([record])
+        assert csv_text.splitlines() == [
+            self.HEADER,
+            "2026-10-12 12:59:51,返書,眼科,橋本義弘,Claude,12000,4500,12",
+        ]
+
+    def test_default_and_missing_values_use_display_labels(self):
+        """'default' と未設定の値は画面と同じ表示に置き換わる"""
+        records = [
+            SummaryUsage(department="default", doctor="default"),
+            SummaryUsage(),
+        ]
+        csv_text = statistics_service.build_usage_history_csv(records)
+        assert csv_text.splitlines()[1:] == ["-,-,全科共通,医師共通,-,0,0,0"] * 2
+
+    def test_processing_time_is_rounded_half_up(self):
+        """作成時間は四捨五入した整数になる"""
+        record = SummaryUsage(processing_time=2.5)
+        csv_text = statistics_service.build_usage_history_csv([record])
+        assert csv_text.splitlines()[1].endswith(",3")
+
+
+def test_get_usage_history_csv_filename():
+    """ファイル名に出力日 (JST) が含まれる"""
+    today = datetime.now(JST).strftime("%Y%m%d")
+    assert (
+        statistics_service.get_usage_history_csv_filename()
+        == f"usage_history_{today}.csv"
+    )
+
+
+def test_get_usage_records_without_limit(test_db, sample_usage_records):
+    """limit=None で全件取得できる"""
+    records = statistics_service.get_usage_records(test_db, limit=None)
+    assert len(records) == 2
